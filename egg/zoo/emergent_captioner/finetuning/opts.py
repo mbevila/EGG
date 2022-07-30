@@ -10,7 +10,7 @@ import egg.core as core
 
 def get_data_opts(parser):
     group = parser.add_argument_group("data options")
-    group.add_argument("--dataset_dir", default="/checkpoint/rdessi/datasets/flickr30k")
+    group.add_argument("--dataset_dir", default="/checkpoint/rdessi/datasets/flickr30k/train_val_and_test_splits")
     group.add_argument("--image_size", type=int, default=224, help="Image size")
     group.add_argument("--num_workers", type=int, default=8)
 
@@ -18,11 +18,6 @@ def get_data_opts(parser):
 def get_game_opts(parser):
     group = parser.add_argument_group("game options")
 
-    group.add_argument(
-        "--sender",
-        choices=["human", "clipcap"],
-        default="human",
-    )
     group.add_argument(
         "--clipcap_model_path",
         default="/private/home/rdessi/EGG/egg/zoo/emergent_captioner/clipclap_models/conceptual_weights.pt",
@@ -44,12 +39,6 @@ def get_game_opts(parser):
         help="Number of prefix tokens generated from a clip image embedding",
     )
     group.add_argument(
-        "--use_beam_search",
-        action="store_true",
-        default=False,
-        help="Use beam search decoding when generating captions",
-    )
-    group.add_argument(
         "--beam_size",
         type=int,
         default=5,
@@ -60,6 +49,11 @@ def get_game_opts(parser):
 def get_common_opts(params):
     parser = argparse.ArgumentParser()
 
+    parser.add_argument(
+        "--warmup_steps",
+        type=int,
+        default=5000,
+    )
     parser.add_argument(
         "--debug",
         action="store_true",

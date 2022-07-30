@@ -8,7 +8,7 @@ import torch.nn as nn
 
 import clip
 
-from egg.zoo.emergent_captioner.baseline.utils import convert_models_to_fp32
+from egg.zoo.emergent_captioner.utils import convert_models_to_fp32
 
 
 class ClipReceiver(nn.Module):

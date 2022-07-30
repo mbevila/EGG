@@ -10,21 +10,15 @@ from transformers import AdamW, get_linear_schedule_with_warmup
 
 import egg.core as core
 from egg.core import Callback, ConsoleLogger, Interaction
-from egg.zoo.contextual_game.game import build_game
-from egg.zoo.contextual_game.dataloaders.flickr_dataloader import get_dataloader
-from egg.zoo.contextual_game.opts import get_common_opts
-from egg.zoo.contextual_game.utils import get_sha, store_job_and_task_id
+from egg.zoo.emergent_captioner.dataloaders.flickr_dataloader import get_dataloader
+from egg.zoo.emergent_captioner.finetuning.game import build_game
+from egg.zoo.emergent_captioner.finetuning.opts import get_common_opts
+from egg.zoo.emergent_captioner.utils import get_sha, store_job_and_task_id
 
 
 def print_grad_info(model):
-    grad, no_grad = [], []
-    for name, param in model.named_parameters():
-        if not param.requires_grad:
-            no_grad.append(name)
-            continue
-        grad.append(name)
+    grad = [name for name, param in model.named_parameters() if param.requires_grad]
     print(f"GRAD {grad}")
-    print(f"NO GRAD {no_grad}")
 
 
 class ModelSaver(Callback):
@@ -37,9 +31,8 @@ class ModelSaver(Callback):
                 self.trainer.checkpoint_path.mkdir(exist_ok=True, parents=True)
                 model_name = f"clip_clap_model_{epoch if epoch else 'final'}.pt"
 
-                # TODO check accessing to clipclap model is done correctly
                 torch.save(
-                    self.trainer.game.sender.clipclap_model.state_dict(),
+                    self.trainer.game.sender.clipcap.state_dict(),
                     self.trainer.checkpoint_path / model_name,
                 )
 
@@ -62,20 +55,18 @@ def main(params):
         breakpoint()
 
     train_loader = get_dataloader(
-        image_dir=opts.image_dir,
-        metadata_dir=opts.metadata_dir,
+        dataset_dir=opts.dataset_dir,
         batch_size=opts.batch_size,
         image_size=opts.image_size,
         split="train",
         num_workers=opts.num_workers,
-        is_distributed=opts.distributed_context.is_distributed,
-        seed=opts.random_seed,
     )
 
     game = build_game(opts)
     print_grad_info(game)
 
-    optimizer = AdamW(game.parameters(), lr=opts.lr)
+    optimizer = AdamW(game.sender.parameters(), lr=opts.lr)
+    # optimizer = torch.optim.Adam(game.parameters(), lr=opts.lr)
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
         num_warmup_steps=opts.warmup_steps,
@@ -92,6 +83,8 @@ def main(params):
     )
 
     trainer.train(opts.n_epochs)
+
+    # TODO do evaluation loop
 
     end = time.time()
     print(f"| Run took {end - start:.2f} seconds")

@@ -12,7 +12,7 @@ import egg.core as core
 from egg.zoo.emergent_captioner.baseline.game import build_game
 from egg.zoo.emergent_captioner.dataloaders.flickr_dataloader import get_dataloader
 from egg.zoo.emergent_captioner.baseline.opts import get_common_opts
-from egg.zoo.emergent_captioner.baseline.utils import (
+from egg.zoo.emergent_captioner.utils import (
     get_sha,
     log_stats,
     store_job_and_task_id,
