@@ -76,12 +76,12 @@ class ReinforceCaptionGame(nn.Module):
         self.loss = loss
 
         self.train_logging_strategy = (
-            LoggingStrategy()
+            LoggingStrategy().minimal()
             if train_logging_strategy is None
             else train_logging_strategy
         )
         self.test_logging_strategy = (
-            LoggingStrategy()
+            LoggingStrategy().minimal()
             if test_logging_strategy is None
             else test_logging_strategy
         )
@@ -114,7 +114,7 @@ class ReinforceCaptionGame(nn.Module):
             labels=labels,
             receiver_input=receiver_input,
             aux_input=aux_input,
-            message=None,  # bs_message,
+            message=bs_message,
             receiver_output=receiver_output.detach(),
             message_length=None,
             aux=aux_info,
@@ -134,5 +134,7 @@ def build_game(opts):
 
     receiver = ClipReceiver(clip_model=opts.recv_clip_model)
 
+    # TODO add option to use other losses
+    # remember that with non-diff loss you should use a wrapper around recv
     game = ReinforceCaptionGame(sender, receiver, discriminative_loss)
     return game

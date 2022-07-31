@@ -6,19 +6,20 @@
 import time
 
 import torch
-from transformers import AdamW, get_linear_schedule_with_warmup
+from transformers import get_linear_schedule_with_warmup  # AdamW,
 
 import egg.core as core
 from egg.core import Callback, ConsoleLogger, Interaction
+from egg.core.interaction import LoggingStrategy
 from egg.zoo.emergent_captioner.dataloaders.flickr_dataloader import get_dataloader
 from egg.zoo.emergent_captioner.finetuning.game import build_game
 from egg.zoo.emergent_captioner.finetuning.opts import get_common_opts
-from egg.zoo.emergent_captioner.utils import get_sha, store_job_and_task_id
-
-
-def print_grad_info(model):
-    grad = [name for name, param in model.named_parameters() if param.requires_grad]
-    print(f"GRAD {grad}")
+from egg.zoo.emergent_captioner.utils import (
+    dump_interaction,
+    get_sha,
+    log_stats,
+    store_job_and_task_id,
+)
 
 
 class ModelSaver(Callback):
@@ -61,12 +62,18 @@ def main(params):
         split="train",
         num_workers=opts.num_workers,
     )
+    val_loader = get_dataloader(
+        dataset_dir=opts.dataset_dir,
+        batch_size=opts.batch_size,
+        image_size=opts.image_size,
+        split="val",
+        num_workers=opts.num_workers,
+    )
 
     game = build_game(opts)
-    print_grad_info(game)
 
-    optimizer = AdamW(game.sender.parameters(), lr=opts.lr)
-    # optimizer = torch.optim.Adam(game.parameters(), lr=opts.lr)
+    # optimizer = AdamW(game.sender.parameters(), lr=opts.lr)
+    optimizer = torch.optim.Adam(game.sender.parameters(), lr=opts.lr)
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
         num_warmup_steps=opts.warmup_steps,
@@ -78,13 +85,28 @@ def main(params):
         optimizer=optimizer,
         optimizer_scheduler=scheduler,
         train_data=train_loader,
+        validation_data=val_loader,
         callbacks=[ConsoleLogger(as_json=True, print_train_loss=True), ModelSaver()],
         debug=opts.debug,
     )
 
     trainer.train(opts.n_epochs)
 
-    # TODO do evaluation loop
+    test_loader = get_dataloader(
+        dataset_dir=opts.dataset_dir,
+        batch_size=opts.batch_size,
+        image_size=opts.image_size,
+        split="test",
+        num_workers=opts.num_workers,
+    )
+
+    trainer.game.test_logging_strategy = LoggingStrategy(
+        False, False, True, True, True, True, False
+    )
+    _, test_interaction = trainer.eval(test_loader)
+
+    log_stats(test_interaction, "TEST SET")
+    dump_interaction(test_interaction, opts)
 
     end = time.time()
     print(f"| Run took {end - start:.2f} seconds")

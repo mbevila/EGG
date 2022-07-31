@@ -129,6 +129,9 @@ class Interaction:
         """
 
         def _check_cat(lst):
+            if isinstance(lst[0], list):
+                return lst
+
             if all(x is None for x in lst):
                 return None
             # if some but not all are None: not good

@@ -12,6 +12,11 @@ from pathlib import Path
 import torch
 
 
+def print_grad_info(model):
+    grad = [name for name, param in model.named_parameters() if param.requires_grad]
+    print(f"GRAD {grad}")
+
+
 def convert_models_to_fp32(model):
     for p in model.parameters():
         p.data = p.data.float()

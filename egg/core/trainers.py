@@ -172,7 +172,6 @@ class Trainer:
         self.game.eval()
         with torch.no_grad():
             for batch_id, batch in enumerate(validation_data):
-                print(f"batch {batch_id}")
                 if self.debug and batch_id == 10:
                     break
                 if not isinstance(batch, Batch):

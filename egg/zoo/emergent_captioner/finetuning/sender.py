@@ -151,6 +151,7 @@ class ClipCapModel(nn.Module):
 
         log_prob = sequence_scores / len(generated_bms.scores)
         """
+        # TODO remove probs after full stop
         log_prob = generated_bms.sequences_scores
 
         return captions_beam_search, captions_greedy, log_prob

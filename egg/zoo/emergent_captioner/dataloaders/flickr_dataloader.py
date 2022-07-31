@@ -210,8 +210,6 @@ def get_dataloader(
         dataset_dir=dataset_dir, split=split, transform=get_transform(image_size)
     )
 
-    _ = ds[0]
-
     loader = torch.utils.data.DataLoader(
         ds,
         batch_size=batch_size,
