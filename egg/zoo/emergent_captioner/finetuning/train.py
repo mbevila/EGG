@@ -6,7 +6,8 @@
 import time
 
 import torch
-from transformers import get_linear_schedule_with_warmup  # AdamW,
+
+# from transformers import get_linear_schedule_with_warmup  # AdamW,
 
 import egg.core as core
 from egg.core import Callback, ConsoleLogger, Interaction
@@ -74,16 +75,18 @@ def main(params):
 
     # optimizer = AdamW(game.sender.parameters(), lr=opts.lr)
     optimizer = torch.optim.Adam(game.sender.parameters(), lr=opts.lr)
+    """
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
         num_warmup_steps=opts.warmup_steps,
         num_training_steps=opts.n_epochs * len(train_loader),
     )
+    """
 
     trainer = core.Trainer(
         game=game,
         optimizer=optimizer,
-        optimizer_scheduler=scheduler,
+        # optimizer_scheduler=scheduler,
         train_data=train_loader,
         validation_data=val_loader,
         callbacks=[ConsoleLogger(as_json=True, print_train_loss=True), ModelSaver()],

@@ -103,14 +103,18 @@ class ClipCapModel(nn.Module):
             return_dict_in_generate=True,
         )
         generated_ids_beam_search = generated_bms.sequences
-        captions_beam_search = self.tokenizer.batch_decode(
+        decoded_beam_search = self.tokenizer.batch_decode(
             generated_ids_beam_search[:, prefix_len:],
             skip_special_tokens=True,
             clean_up_tokenization_spaces=True,
         )
-        captions_beam_search = [
-            caption[: caption.index(".") + 1] for caption in captions_beam_search
-        ]
+        captions_beam_search = []
+        for caption in decoded_beam_search:
+            try:
+                filtered_caption = caption[: caption.index(".") + 1]
+            except IndexError:
+                filtered_caption = caption
+            captions_beam_search.append(filtered_caption)
 
         # GREEDY CAPTIONS
         generated_ids_greedy = self.gpt.generate(
@@ -118,14 +122,19 @@ class ClipCapModel(nn.Module):
             max_length=75,
             forced_eos_token_id=self.tokenizer.encode(".")[0],
         )
-        captions_greedy = self.tokenizer.batch_decode(
+        decoded_greedy = self.tokenizer.batch_decode(
             generated_ids_greedy[:, prefix_len:],
             skip_special_tokens=True,
             clean_up_tokenization_spaces=True,
         )
-        captions_greedy = [
-            caption[: caption.index(".") + 1] for caption in captions_greedy
-        ]
+        captions_greedy = []
+        for caption in decoded_greedy:
+            try:
+                filtered_caption = caption[: caption.index(".") + 1]
+            except IndexError:
+                filtered_caption = caption
+
+            captions_greedy.append(filtered_caption)
 
         """
         # LOG PROBS

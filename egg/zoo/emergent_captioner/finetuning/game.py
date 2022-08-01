@@ -88,23 +88,32 @@ class ReinforceCaptionGame(nn.Module):
 
     def forward(self, sender_input, labels, receiver_input=None, aux_input=None):
         bs_message, greedy_message, log_prob = self.sender(sender_input, aux_input)
-        receiver_output = self.receiver(bs_message, receiver_input, aux_input)
 
+        receiver_output_bms = self.receiver(bs_message, receiver_input, aux_input)
         bs_reward, aux_info = self.loss(
-            sender_input, bs_message, receiver_input, receiver_output, labels, aux_input
-        )
-        greedy_reward, aux_info = self.loss(
             sender_input,
-            greedy_message,
+            bs_message,
             receiver_input,
-            receiver_output,
+            receiver_output_bms,
             labels,
             aux_input,
         )
+        with torch.no_grad():
+            receiver_output_greedy = self.receiver(
+                greedy_message, receiver_input, aux_input
+            )
+            greedy_reward, aux_info = self.loss(
+                sender_input,
+                greedy_message,
+                receiver_input,
+                receiver_output_greedy,
+                labels,
+                aux_input,
+            )
 
         # ignoring entropy for now
         reward = bs_reward - greedy_reward.detach()
-        policy_loss = (reward * log_prob).mean()
+        policy_loss = reward * log_prob
 
         logging_strategy = (
             self.train_logging_strategy if self.training else self.test_logging_strategy
@@ -115,12 +124,12 @@ class ReinforceCaptionGame(nn.Module):
             receiver_input=receiver_input,
             aux_input=aux_input,
             message=bs_message,
-            receiver_output=receiver_output.detach(),
+            receiver_output=receiver_output_bms.detach(),
             message_length=None,
             aux=aux_info,
         )
 
-        return policy_loss, interaction
+        return policy_loss.mean(), interaction
 
 
 def build_game(opts):
