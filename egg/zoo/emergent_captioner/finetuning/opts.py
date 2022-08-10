@@ -32,7 +32,7 @@ def get_game_opts(parser):
     group.add_argument(
         "--recv_clip_model",
         choices=["ViT-B/16", "ViT-B/32", "RN50x4"],
-        default="ViT-B/32",
+        default="ViT-B/16",
     )
     group.add_argument(
         "--clip_prefix_tokens",
@@ -45,6 +45,12 @@ def get_game_opts(parser):
         type=int,
         default=5,
         help="Number of beams when using beam serach decoding",
+    )
+    group.add_argument(
+        "--sender_entropy_coeff",
+        type=float,
+        default=0.0,
+        help="The entropy regularization coefficient for Sender used in reinforce",
     )
 
 

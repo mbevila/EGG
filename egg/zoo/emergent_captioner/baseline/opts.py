@@ -53,7 +53,7 @@ def get_game_opts(parser):
         "--beam_size",
         type=int,
         default=5,
-        help="Number of beams when using beam serach decoding",
+        help="Number of beams when using beam search decoding",
     )
 
 

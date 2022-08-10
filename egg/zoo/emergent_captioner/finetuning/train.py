@@ -19,6 +19,7 @@ from egg.zoo.emergent_captioner.utils import (
     dump_interaction,
     get_sha,
     log_stats,
+    # print_grad_info,
     store_job_and_task_id,
 )
 
@@ -60,18 +61,21 @@ def main(params):
         dataset_dir=opts.dataset_dir,
         batch_size=opts.batch_size,
         image_size=opts.image_size,
-        split="train",
+        split="test",
         num_workers=opts.num_workers,
     )
+    """
     val_loader = get_dataloader(
         dataset_dir=opts.dataset_dir,
         batch_size=opts.batch_size,
         image_size=opts.image_size,
-        split="val",
+        split="test",
         num_workers=opts.num_workers,
     )
+    """
 
     game = build_game(opts)
+    # print_grad_info(game.sender)
 
     # optimizer = AdamW(game.sender.parameters(), lr=opts.lr)
     optimizer = torch.optim.Adam(game.sender.parameters(), lr=opts.lr)
@@ -88,7 +92,7 @@ def main(params):
         optimizer=optimizer,
         # optimizer_scheduler=scheduler,
         train_data=train_loader,
-        validation_data=val_loader,
+        # validation_data=val_loader,
         callbacks=[ConsoleLogger(as_json=True, print_train_loss=True), ModelSaver()],
         debug=opts.debug,
     )
@@ -118,7 +122,7 @@ def main(params):
 
 if __name__ == "__main__":
     torch.autograd.set_detect_anomaly(True)
-    torch.set_deterministic(True)
+    # torch.set_deterministic(True)
     import sys
 
     main(sys.argv[1:])
