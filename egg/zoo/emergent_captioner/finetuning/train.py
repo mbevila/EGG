@@ -6,8 +6,7 @@
 import time
 
 import torch
-
-# from transformers import get_linear_schedule_with_warmup  # AdamW,
+from transformers import AdamW, get_linear_schedule_with_warmup
 
 import egg.core as core
 from egg.core import Callback, ConsoleLogger, Interaction
@@ -61,7 +60,7 @@ def main(params):
         dataset_dir=opts.dataset_dir,
         batch_size=opts.batch_size,
         image_size=opts.image_size,
-        split="test",
+        split="train",
         num_workers=opts.num_workers,
     )
     """
@@ -69,7 +68,7 @@ def main(params):
         dataset_dir=opts.dataset_dir,
         batch_size=opts.batch_size,
         image_size=opts.image_size,
-        split="test",
+        split="val",
         num_workers=opts.num_workers,
     )
     """
@@ -77,20 +76,22 @@ def main(params):
     game = build_game(opts)
     # print_grad_info(game.sender)
 
-    # optimizer = AdamW(game.sender.parameters(), lr=opts.lr)
-    optimizer = torch.optim.Adam(game.sender.parameters(), lr=opts.lr)
-    """
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer,
-        num_warmup_steps=opts.warmup_steps,
-        num_training_steps=opts.n_epochs * len(train_loader),
-    )
-    """
+    name2opt = {"adam": torch.optim.Adam, "adamw": AdamW}
+
+    optimizer = name2opt[opts.opt.lower()](game.sender.parameters(), lr=opts.lr)
+
+    scheduler = None
+    if opts.opt_scheduler:
+        scheduler = get_linear_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=opts.warmup_steps,
+            num_training_steps=opts.n_epochs * len(train_loader),
+        )
 
     trainer = core.Trainer(
         game=game,
         optimizer=optimizer,
-        # optimizer_scheduler=scheduler,
+        optimizer_scheduler=scheduler,
         train_data=train_loader,
         # validation_data=val_loader,
         callbacks=[ConsoleLogger(as_json=True, print_train_loss=True), ModelSaver()],

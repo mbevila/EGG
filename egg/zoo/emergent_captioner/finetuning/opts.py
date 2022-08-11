@@ -58,10 +58,12 @@ def get_common_opts(params):
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--warmup_steps",
-        type=int,
-        default=5000,
+        "--opt",
+        default="adam",
+        choices=["adam", "adamw"],
     )
+    parser.add_argument("--opt_scheduler", action="store_true", default=False)
+    parser.add_argument("--warmup_steps", type=int, default=1000)
     parser.add_argument(
         "--debug",
         action="store_true",
