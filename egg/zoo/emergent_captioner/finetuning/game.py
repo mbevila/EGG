@@ -140,6 +140,54 @@ class ReinforceCaptionGame(nn.Module):
 
         return optimized_loss.mean(), interaction
 
+    def backup_forward(self, sender_input, labels, receiver_input=None, aux_input=None):
+        bs_message, greedy_message, log_prob, entropy = self.sender(
+            sender_input, aux_input
+        )
+
+        with torch.no_grad():
+            receiver_output_bms = self.receiver(bs_message, receiver_input, aux_input)
+            bs_reward, aux_info = self.loss(
+                sender_input,
+                bs_message,
+                receiver_input,
+                receiver_output_bms,
+                labels,
+                aux_input,
+            )
+
+            receiver_output_greedy = self.receiver(
+                greedy_message, receiver_input, aux_input
+            )
+            greedy_reward, aux_info = self.loss(
+                sender_input,
+                greedy_message,
+                receiver_input,
+                receiver_output_greedy,
+                labels,
+                aux_input,
+            )
+
+        # ignoring entropy for now
+        reward = bs_reward - greedy_reward
+        policy_loss = (reward * log_prob) - (entropy * self.sender_entropy_coeff)
+
+        logging_strategy = (
+            self.train_logging_strategy if self.training else self.test_logging_strategy
+        )
+        interaction = logging_strategy.filtered_interaction(
+            sender_input=sender_input,
+            labels=labels,
+            receiver_input=receiver_input,
+            aux_input=aux_input,
+            message=bs_message,
+            receiver_output=receiver_output_bms.detach(),
+            message_length=None,
+            aux=aux_info,
+        )
+
+        return policy_loss.mean(), interaction
+
 
 def build_game(opts):
     sender = ClipCapSender(

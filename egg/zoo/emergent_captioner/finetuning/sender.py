@@ -173,8 +173,11 @@ class ClipCapSender(nn.Module):
     def setup_clipcap(self, batch_size, n_prefix_tokens):
         self.clipcap.setup_input_output_embeddings(batch_size, n_prefix_tokens)
 
+    def encode_images(self, images: torch.Tensor):
+        return self.clip_vit(images)
+
     def forward(self, images: torch.Tensor, aux_input: Dict[Any, torch.Tensor] = None):
-        image_feats = self.clip_vit(images)
+        image_feats = self.encode_images(images)
         captions, log_probs, entropy, msg_lengths = self.clipcap(image_feats, aux_input)
         return captions, log_probs, entropy, msg_lengths
 
