@@ -3,17 +3,34 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from collections import defaultdict
 from typing import Callable
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from egg.core.baselines import Baseline, MeanBaseline
+from egg.core.baselines import MeanBaseline, NoBaseline
 from egg.core.interaction import LoggingStrategy
 from egg.zoo.emergent_captioner.receiver import ClipReceiver
 from egg.zoo.emergent_captioner.finetuning.sender import ClipCapSender
+
+
+class GreedyBaseline:
+    def __init__(self, sender: nn.Module, receiver: nn.Module, loss: Callable):
+        self.sender = sender
+        self.receiver = receiver
+        self.loss = loss
+
+        greedy_fn = getattr(self.sender, "get_greedy_baseline", None)
+        assert greedy_fn, "Sender must implement the method get_greedy_baseline"
+
+    def __call__(self, receiver_input: torch.Tensor, aux_input=None) -> torch.Tensor:
+        with torch.no_grad():
+            greedy_caption = self.sender.get_greedy_baseline()
+            receiver_output = self.receiver(greedy_caption, receiver_input)
+            baseline, _ = self.loss(None, None, None, receiver_output, None, None)
+        aux_input["greedy_caption"] = greedy_caption
+        return baseline
 
 
 def accuracy_loss(
@@ -52,7 +69,7 @@ def similarity_loss(
     _message,
     _receiver_input,
     receiver_output,
-    labels,
+    _labels,
     _aux_input,
 ):
     batch_size = receiver_output.shape[0]
@@ -74,7 +91,7 @@ class ReinforceCaptionGame(nn.Module):
         receiver: nn.Module,
         loss: Callable,
         sender_entropy_coeff: float = 0.0,
-        baseline_type: Baseline = MeanBaseline,
+        baseline: str = "no",
         train_logging_strategy: LoggingStrategy = None,
         test_logging_strategy: LoggingStrategy = None,
     ):
@@ -83,7 +100,17 @@ class ReinforceCaptionGame(nn.Module):
         self.receiver = receiver
         self.loss = loss
 
-        self.baselines = defaultdict(baseline_type)
+        self.baseline_name = baseline
+        baseline_type = {
+            "no": NoBaseline,
+            "mean": MeanBaseline,
+            "greedy": GreedyBaseline,
+        }[baseline]
+
+        if baseline == "greedy":
+            self.baseline = baseline_type(sender, receiver, loss)
+        else:
+            self.baseline = baseline_type()
 
         self.sender_entropy_coeff = sender_entropy_coeff
 
@@ -113,14 +140,18 @@ class ReinforceCaptionGame(nn.Module):
             )
 
         weighted_entropy = entropy * self.sender_entropy_coeff
-        policy_loss = (
-            (loss.detach() - self.baselines["loss"].predict(loss.detach())) * log_prob
-        ).mean()
+
+        if self.baseline_name == "greedy":
+            baseline = self.baseline(receiver_input, aux_input)
+        else:
+            baseline = self.baseline.predict(loss.detach())
+
+        policy_loss = ((loss.detach() - baseline) * log_prob).mean()
 
         optimized_loss = policy_loss - weighted_entropy
 
-        if self.training:
-            self.baselines["loss"].update(loss)
+        if self.training and self.baseline_name != "greedy":
+            self.baseline.update(loss)
 
         aux_info["sender_entropy"] = entropy.detach()
 
@@ -140,60 +171,12 @@ class ReinforceCaptionGame(nn.Module):
 
         return optimized_loss.mean(), interaction
 
-    def backup_forward(self, sender_input, labels, receiver_input=None, aux_input=None):
-        bs_message, greedy_message, log_prob, entropy = self.sender(
-            sender_input, aux_input
-        )
-
-        with torch.no_grad():
-            receiver_output_bms = self.receiver(bs_message, receiver_input, aux_input)
-            bs_reward, aux_info = self.loss(
-                sender_input,
-                bs_message,
-                receiver_input,
-                receiver_output_bms,
-                labels,
-                aux_input,
-            )
-
-            receiver_output_greedy = self.receiver(
-                greedy_message, receiver_input, aux_input
-            )
-            greedy_reward, aux_info = self.loss(
-                sender_input,
-                greedy_message,
-                receiver_input,
-                receiver_output_greedy,
-                labels,
-                aux_input,
-            )
-
-        # ignoring entropy for now
-        reward = bs_reward - greedy_reward
-        policy_loss = (reward * log_prob) - (entropy * self.sender_entropy_coeff)
-
-        logging_strategy = (
-            self.train_logging_strategy if self.training else self.test_logging_strategy
-        )
-        interaction = logging_strategy.filtered_interaction(
-            sender_input=sender_input,
-            labels=labels,
-            receiver_input=receiver_input,
-            aux_input=aux_input,
-            message=bs_message,
-            receiver_output=receiver_output_bms.detach(),
-            message_length=None,
-            aux=aux_info,
-        )
-
-        return policy_loss.mean(), interaction
-
 
 def build_game(opts):
     sender = ClipCapSender(
         clip_prefix_tokens=opts.clip_prefix_tokens,
         clip_model=opts.sender_clip_model,
-        clip_cap_path=opts.clipcap_model_path,
+        clipcap_path=opts.clipcap_model_path,
         beam_size=opts.beam_size,
         max_len=opts.max_len,
     )
@@ -207,6 +190,7 @@ def build_game(opts):
         sender=sender,
         receiver=receiver,
         loss=discriminative_loss,
+        baseline=opts.baseline,
         sender_entropy_coeff=opts.sender_entropy_coeff,
     )
     return game

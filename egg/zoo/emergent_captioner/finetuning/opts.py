@@ -26,12 +26,12 @@ def get_game_opts(parser):
     )
     group.add_argument(
         "--sender_clip_model",
-        choices=["ViT-B/16", "ViT-B/32", "RN50x4"],
+        choices=["ViT-B/16", "ViT-B/32"],
         default="ViT-B/32",
     )
     group.add_argument(
         "--recv_clip_model",
-        choices=["ViT-B/16", "ViT-B/32", "RN50x4"],
+        choices=["ViT-B/16", "ViT-B/32"],
         default="ViT-B/16",
     )
     group.add_argument(
@@ -45,6 +45,11 @@ def get_game_opts(parser):
         type=int,
         default=5,
         help="Number of beams when using beam serach decoding",
+    )
+    group.add_argument(
+        "--baseline",
+        choices=["no", "mean", "greedy"],
+        default="no",
     )
     group.add_argument(
         "--sender_entropy_coeff",

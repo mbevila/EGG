@@ -70,6 +70,25 @@ class ClipCapModel(nn.Module):
     def setup_input_output_embeddings(self, bsz, prefix_len):
         self.gpt.resize_token_embeddings(len(self.tokenizer) + (prefix_len * bsz))
 
+    def get_greedy_baseline(self):
+        generated_ids = self.gpt.generate(
+            self.cached_input_ids, max_length=self.max_len + self.clip_prefix_tokens
+        )
+
+        decoded = self.tokenizer.batch_decode(
+            generated_ids[:, self.clip_prefix_tokens :],
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=True,
+        )
+
+        captions = []
+        for caption in decoded:
+            text = caption + "."
+            filtered = text[: text.index(".") + 1]
+            captions.append(filtered)
+
+        return captions
+
     def forward(self, image_feats, aux_input=None):
         bsz = image_feats.shape[0]
 
@@ -88,6 +107,7 @@ class ClipCapModel(nn.Module):
         self.gpt.get_input_embeddings().weight.data[start:end] = prefix_embed_flat
         input_ids = torch.arange(start, end)
         input_ids = input_ids.view(bsz, prefix_len).to(prefix_embed.device)
+        self.cached_input_ids = input_ids
 
         generated = self.gpt.generate_with_grad(
             input_ids,
@@ -146,13 +166,13 @@ class ClipCapSender(nn.Module):
         self,
         clip_prefix_tokens: int,
         clip_model: str,
-        clip_cap_path: str,
+        clipcap_path: str,
         beam_size: int = 5,
         max_len: int = 20,
     ):
         super(ClipCapSender, self).__init__()
 
-        assert max_len < 75  # Clip maximmum context size
+        assert max_len < 75  # Clip maximum context size
 
         self.clip_vit = clip.load(clip_model)[0].visual
         convert_models_to_fp32(self.clip_vit)
@@ -167,14 +187,17 @@ class ClipCapSender(nn.Module):
             beam_size=beam_size,
             max_len=max_len,
         )
-        if clip_cap_path is not None:
-            self.clipcap.load_state_dict(torch.load(clip_cap_path))
+        if clipcap_path is not None:
+            self.clipcap.load_state_dict(torch.load(clipcap_path))
 
     def setup_clipcap(self, batch_size, n_prefix_tokens):
         self.clipcap.setup_input_output_embeddings(batch_size, n_prefix_tokens)
 
     def encode_images(self, images: torch.Tensor):
         return self.clip_vit(images)
+
+    def get_greedy_baseline(self):
+        return self.clipcap.get_greedy_baseline()
 
     def forward(self, images: torch.Tensor, aux_input: Dict[Any, torch.Tensor] = None):
         image_feats = self.encode_images(images)
