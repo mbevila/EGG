@@ -185,7 +185,6 @@ class Flickr30kDataset(VisionDataset):
         if self.transform:
             image = self.transform(image)
 
-        # caption = random.choice(sents)["sentence"]
         all_captions = [elem["sentence"] for elem in sents]
 
         aux = {

@@ -32,10 +32,10 @@ def get_game_opts(parser):
     group.add_argument(
         "--recv_clip_model",
         choices=["ViT-B/16", "ViT-B/32"],
-        default="ViT-B/16",
+        default="ViT-B/32",
     )
     group.add_argument(
-        "--clip_prefix_tokens",
+        "--nb_prefix_tokens",
         type=int,
         default=10,
         help="Number of prefix tokens generated from a clip image embedding",
@@ -46,9 +46,11 @@ def get_game_opts(parser):
         default=5,
         help="Number of beams when using beam serach decoding",
     )
+    group.add_argument("--num_return_sequences", type=int, default=1)
+    group.add_argument("--do_sample", action="store_true", default=False)
     group.add_argument(
         "--baseline",
-        choices=["no", "mean", "greedy"],
+        choices=["no", "mean"],
         default="no",
     )
     group.add_argument(

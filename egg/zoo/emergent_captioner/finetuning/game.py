@@ -15,24 +15,6 @@ from egg.zoo.emergent_captioner.receiver import ClipReceiver
 from egg.zoo.emergent_captioner.finetuning.sender import ClipCapSender
 
 
-class GreedyBaseline:
-    def __init__(self, sender: nn.Module, receiver: nn.Module, loss: Callable):
-        self.sender = sender
-        self.receiver = receiver
-        self.loss = loss
-
-        greedy_fn = getattr(self.sender, "get_greedy_baseline", None)
-        assert greedy_fn, "Sender must implement the method get_greedy_baseline"
-
-    def __call__(self, receiver_input: torch.Tensor, aux_input=None) -> torch.Tensor:
-        with torch.no_grad():
-            greedy_caption = self.sender.get_greedy_baseline()
-            receiver_output = self.receiver(greedy_caption, receiver_input)
-            baseline, _ = self.loss(None, None, None, receiver_output, None, None)
-        aux_input["greedy_caption"] = greedy_caption
-        return baseline
-
-
 def accuracy_loss(
     _sender_input,
     _message,
@@ -101,16 +83,7 @@ class ReinforceCaptionGame(nn.Module):
         self.loss = loss
 
         self.baseline_name = baseline
-        baseline_type = {
-            "no": NoBaseline,
-            "mean": MeanBaseline,
-            "greedy": GreedyBaseline,
-        }[baseline]
-
-        if baseline == "greedy":
-            self.baseline = baseline_type(sender, receiver, loss)
-        else:
-            self.baseline = baseline_type()
+        self.baseline = {"no": NoBaseline, "mean": MeanBaseline}[baseline]()
 
         self.sender_entropy_coeff = sender_entropy_coeff
 
@@ -141,19 +114,16 @@ class ReinforceCaptionGame(nn.Module):
 
         weighted_entropy = entropy * self.sender_entropy_coeff
 
-        if self.baseline_name == "greedy":
-            baseline = self.baseline(receiver_input, aux_input)
-        else:
-            baseline = self.baseline.predict(loss.detach())
+        baseline = self.baseline.predict(loss.detach())
 
         policy_loss = ((loss.detach() - baseline) * log_prob).mean()
 
         optimized_loss = policy_loss - weighted_entropy
 
-        if self.training and self.baseline_name != "greedy":
+        if self.training:
             self.baseline.update(loss)
 
-        aux_info["sender_entropy"] = entropy.detach()
+        aux_info["sender_entropy"] = entropy
 
         logging_strategy = (
             self.train_logging_strategy if self.training else self.test_logging_strategy
@@ -174,18 +144,20 @@ class ReinforceCaptionGame(nn.Module):
 
 def build_game(opts):
     sender = ClipCapSender(
-        clip_prefix_tokens=opts.clip_prefix_tokens,
+        nb_prefix_tokens=opts.nb_prefix_tokens,
         clip_model=opts.sender_clip_model,
         clipcap_path=opts.clipcap_model_path,
+        num_return_sequences=opts.num_return_sequences,
+        do_sample=opts.do_sample,
         beam_size=opts.beam_size,
         max_len=opts.max_len,
     )
-    sender.setup_clipcap(opts.clip_prefix_tokens, opts.batch_size)
 
+    sender.patch_model(opts.batch_size, opts.nb_prefix_tokens)
     receiver = ClipReceiver(clip_model=opts.recv_clip_model)
 
     # TODO add option to use other losses
-    # remember that with non-diff loss you should use a wrapper around recv
+    # remember that with non-diff losses you should use a wrapper around recv
     game = ReinforceCaptionGame(
         sender=sender,
         receiver=receiver,
