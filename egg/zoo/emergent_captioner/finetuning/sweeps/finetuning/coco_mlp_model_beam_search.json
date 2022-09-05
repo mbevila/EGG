@@ -1,0 +1,10 @@
+{
+    "n_epoch": [20],
+    "batch_size": [32, 64, 128],
+    "lr": [0.00001, 0.000001, 0.0000001, 0.0000005],
+    "beam_size": [3, 5],
+    "baseline": ["mean"],
+    "do_sample": [false],
+    "max_len":[40],
+    "random_seed": [111]
+}
