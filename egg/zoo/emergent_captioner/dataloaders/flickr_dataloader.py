@@ -192,7 +192,7 @@ class Flickr30kDataset(VisionDataset):
             "caption": all_captions[0],
             "all_captions": all_captions,
         }
-        return image, torch.zeros(1), image, aux
+        return image, torch.tensor([index]), image, aux
 
 
 def get_dataloader(

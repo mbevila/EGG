@@ -15,13 +15,18 @@ class ClipReceiver(nn.Module):
     def __init__(
         self,
         clip_model: str,
+        return_embeddings: bool = False,
     ):
         super(ClipReceiver, self).__init__()
         self.clip = clip.load(clip_model)[0]
         convert_models_to_fp32(self.clip)
+        self.return_embeddings = return_embeddings
         self.clip.eval()
 
     def forward(self, message, images, aux_input=None):
         text = clip.tokenize(message, truncate=True).to(images.device)
-        _, clip_logits = self.clip(images, text)
-        return clip_logits
+        if self.return_embeddings:
+            return self.encode_text(text)
+        else:
+            _, clip_logits = self.clip(images, text)
+            return clip_logits

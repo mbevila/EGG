@@ -61,6 +61,80 @@ def similarity_loss(
     return receiver_output, {"acc": acc}
 
 
+class DiscriminativeLossWHardNegatives(nn.Module):
+
+    def __init__(self, num_hard_negatives, train_emb, train_nns, dev_emb, dev_nns, no_in_batch_negatives=True):
+        super(DiscriminativeLossWHardNegatives, self).__init__()
+        self.num_hard_negatives = num_hard_negatives
+        self.no_in_batch_negatives = no_in_batch_negatives
+        self.register_buffer('train_emb', train_emb)
+        self.register_buffer('train_nns', train_nns)
+        self.register_buffer('dev_emb', dev_emb)
+        self.register_buffer('dev_nns', dev_nns)
+
+    @property
+    def emb(self):
+        return self.train_emb if self.training else self.dev_emb
+
+    @property
+    def nns(self):
+        return self.train_nns if self.training else self.dev_nns
+
+    @classmethod
+    def from_opts(cls, opts):
+        num_hard_negatives = opts.num_hard_negatives
+        no_in_batch_negatives = opts.no_in_batch_negatives
+        train_emb = torch.load(opts.negatives_train + '.emb.pt', map_location='cpu')
+        train_nns = torch.load(opts.negatives_train + '.nns.pt', map_location='cpu')
+        dev_emb = torch.load(opts.negatives_dev + '.emb.pt', map_location='cpu')
+        dev_nns = torch.load(opts.negatives_dev + '.nns.pt', map_location='cpu')
+        return cls(num_hard_negatives, train_emb, train_nns, dev_emb, dev_nns, no_in_batch_negatives)
+
+    def forward(
+            self,
+            _sender_input,
+            _message,
+            _receiver_input,
+            receiver_output,
+            _labels,
+            _aux_input,
+    ):
+
+        if self.training:
+            emb = self.train_emb
+            nns = self.train_nns
+        else:
+            emb = self.dev_emb
+            nns = self.dev_nns
+
+        # fetches embeddings of nearest-neighbor hard negatives
+        batch_nns = nns[_labels]                   # batch x 101
+        batch_nns = batch_nns[:, :self.num_hard_negatives + 1] # batch x num_negatives + 1
+        batch_emb = emb[batch_nns]                 # batch x num_negatives + 1 x embed_dim
+        labels = torch.zeros_like(batch_nns[:, 0])
+
+        # hard negatives similarity scores
+        receiver_output = receiver_output / receiver_output.norm(dim=-1, keepdim=True)
+        receiver_cosine = torch.einsum('bne,be->bn', batch_emb, receiver_output)
+
+        # in-batch negatives similarity scores (cat'd to hard negatives if computed)
+        if not self.no_in_batch_negatives:
+            receiver_in_batch_cosine = torch.einsum('be,be->bb', receiver_output, receiver_output)
+            # diag mask because we don't want to count the current element twice
+            diag_mask = float('-inf') * torch.eye(
+                           receiver_in_batch_cosine.size(0),
+                           dtype=receiver_in_batch_cosine.dtype,
+                           device=receiver_in_batch_cosine.dtype,
+                       )
+            receiver_in_batch_cosine = receiver_in_batch_cosine + diag_mask
+            receiver_cosine = torch.cat([receiver_cosine, receiver_in_batch_cosine], dim=1)
+
+        # CE loss
+        loss = F.cross_entropy(receiver_cosine, labels, reduction="none").detach().float()
+        acc = (receiver_output.argmax(dim=1) == labels).detach().float()
+        return loss, {"acc": acc}
+
+
 def convert_models_to_fp32(model):
     for p in model.parameters():
         p.data = p.data.float()
@@ -154,14 +228,22 @@ def build_game(opts):
     )
 
     sender.patch_model(opts.batch_size, opts.nb_prefix_tokens)
-    receiver = ClipReceiver(clip_model=opts.recv_clip_model)
+    receiver = ClipReceiver(
+        clip_model=opts.recv_clip_model,
+        return_embeddings=opts.num_hard_negatives > 0,
+    )
+
+    if opts.num_hard_negatives > 0:
+        loss = DiscriminativeLossWHardNegatives.from_opts(opts)
+    else:
+        loss = discriminative_loss
 
     # TODO add option to use other losses
     # remember that with non-diff losses you should use a wrapper around recv
     game = ReinforceCaptionGame(
         sender=sender,
         receiver=receiver,
-        loss=discriminative_loss,
+        loss=loss,
         baseline=opts.baseline,
         sender_entropy_coeff=opts.sender_entropy_coeff,
     )

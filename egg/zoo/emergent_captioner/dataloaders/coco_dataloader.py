@@ -15,7 +15,7 @@ class CocoDataset(CocoCaptions):
 
         aux = {"all_captions": captions, "caption": captions[0]}
 
-        return image, torch.zeros(1), image, aux
+        return image, torch.tensor([idx]), image, aux
 
 
 def get_dataloader(

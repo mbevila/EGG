@@ -59,6 +59,27 @@ def get_game_opts(parser):
         default=0.0,
         help="The entropy regularization coefficient for Sender used in reinforce",
     )
+    group.add_argument(
+        "--num_hard_negatives",
+        type=int,
+        default=0,
+        help="If == 0, uses only in-batch negatives. If > 0, sets the number of hard negatives"
+    )
+    group.add_argument(
+        "--no_in_batch_negatives",
+        action="store_true",
+        help="Disables in-batch negatives; ignored if num_hard_negatives == 0"
+    )
+    group.add_argument(
+        "--negatives_train",
+        type=str,
+        help="Path prefix of hard negatives for the train set; create with embed.py",
+    )
+    group.add_argument(
+        "--negatives_dev",
+        type=str,
+        help="Path prefix of hard negatives for the train set; create with embed.py"
+    )
 
 
 def get_common_opts(params):
