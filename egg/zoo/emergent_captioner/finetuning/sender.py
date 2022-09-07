@@ -158,7 +158,7 @@ class ClipCapModel(nn.Module):
         mask = (extra_tokens == 0).float()
 
         # compute normalized log_probs of generated captions
-        log_probs = torch.gather(logits, dim=2, index=indices.unsqueeze(1)).squeeze()
+        log_probs = torch.gather(logits, dim=2, index=indices.unsqueeze(2)).squeeze()
         log_probs *= mask
         log_probs = log_probs.sum(1) / msg_lengths
 
@@ -212,6 +212,7 @@ class ClipCapSender(nn.Module):
             max_len=max_len,
         )
         if clipcap_path is not None:
+            print("| LOADED CLIPCAP MODEL")
             self.clipcap.load_state_dict(torch.load(clipcap_path))
 
     def encode_images(self, images: torch.Tensor):
