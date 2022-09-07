@@ -64,21 +64,13 @@ def similarity_loss(
 class DiscriminativeLossWHardNegatives(nn.Module):
 
     def __init__(self, num_hard_negatives, train_emb, train_nns, dev_emb, dev_nns, no_in_batch_negatives=True):
-        super(DiscriminativeLossWHardNegatives, self).__init__()
+        super().__init__()
         self.num_hard_negatives = num_hard_negatives
         self.no_in_batch_negatives = no_in_batch_negatives
         self.register_buffer('train_emb', train_emb)
-        self.register_buffer('train_nns', train_nns)
+        self.register_buffer('train_nns', train_nns.long())
         self.register_buffer('dev_emb', dev_emb)
-        self.register_buffer('dev_nns', dev_nns)
-
-    @property
-    def emb(self):
-        return self.train_emb if self.training else self.dev_emb
-
-    @property
-    def nns(self):
-        return self.train_nns if self.training else self.dev_nns
+        self.register_buffer('dev_nns', dev_nns.long())
 
     @classmethod
     def from_opts(cls, opts):
@@ -107,6 +99,9 @@ class DiscriminativeLossWHardNegatives(nn.Module):
             emb = self.dev_emb
             nns = self.dev_nns
 
+        if _labels.dim() == 2:
+            _labels = _labels.squeeze(1)
+
         # fetches embeddings of nearest-neighbor hard negatives
         batch_nns = nns[_labels]                   # batch x 101
         batch_nns = batch_nns[:, :self.num_hard_negatives + 1] # batch x num_negatives + 1
@@ -119,14 +114,9 @@ class DiscriminativeLossWHardNegatives(nn.Module):
 
         # in-batch negatives similarity scores (cat'd to hard negatives if computed)
         if not self.no_in_batch_negatives:
-            receiver_in_batch_cosine = torch.einsum('be,be->bb', receiver_output, receiver_output)
+            receiver_in_batch_cosine = receiver_output @ batch_emb[:, 0].t()
             # diag mask because we don't want to count the current element twice
-            diag_mask = float('-inf') * torch.eye(
-                           receiver_in_batch_cosine.size(0),
-                           dtype=receiver_in_batch_cosine.dtype,
-                           device=receiver_in_batch_cosine.dtype,
-                       )
-            receiver_in_batch_cosine = receiver_in_batch_cosine + diag_mask
+            receiver_in_batch_cosine.fill_diagonal_(float('-inf'))
             receiver_cosine = torch.cat([receiver_cosine, receiver_in_batch_cosine], dim=1)
 
         # CE loss

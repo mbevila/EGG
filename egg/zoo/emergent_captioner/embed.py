@@ -3,6 +3,7 @@ if __name__ == '__main__':
     from argparse import ArgumentParser
     import clip
     import torch
+    import tqdm
     from torch.utils.data.dataloader import DataLoader
     from egg.zoo.emergent_captioner.dataloaders.flickr_dataloader import get_dataloader
 
@@ -32,23 +33,23 @@ if __name__ == '__main__':
     prec_emb = torch.empty(emb_n, emb_s, dtype=torch.float32, device='cpu')
 
     i = 0
-    for batch in dataloader:
+    for batch in tqdm.tqdm(dataloader, desc="Embedding..."):
         batch, *_ = batch
         batch = batch.to(opts.device)
         with torch.no_grad():
-            feats = clip.encode_image(batch)
+            feats = clip_model.encode_image(batch)
             feats /= feats.norm(dim=-1, keepdim=True)
             feats = feats.to('cpu')
             prec_emb[i:i + feats.size(0)] = feats
             i += feats.size(0)
 
-    prec_nns = torch.empty(emb_n, 100, dtype=torch.int32, device='cpu')
-    for chunk_start in range(0, emb_n, 1000):
+    prec_nns = torch.empty(emb_n, 101, dtype=torch.int32, device='cpu')
+    for chunk_start in tqdm.tqdm(range(0, emb_n, 1000), desc="Computing nearest neighbours..."):
         chunk = prec_emb[chunk_start:chunk_start + 1000]
         # emb_n x 1000
         cosin = prec_emb @ chunk.t()
         # 101 x 1000
-        nns = torch.topk(cosin, k=100+1, dim=0, largest=True, sorted=True).indices
+        nns = torch.topk(cosin, k=100+1, dim=0, largest=True, sorted=True).indices.t()
         # 1000 x 101
         prec_nns[chunk_start:chunk_start+1000] = nns
 
