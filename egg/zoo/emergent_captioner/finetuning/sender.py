@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from itertools import chain
 from typing import Any, Dict, Tuple
 
 import clip
@@ -130,16 +131,31 @@ class ClipCapModel(nn.Module):
         self.gpt.get_input_embeddings().weight.data[start:end] = prompts_flat
         input_ids = torch.arange(start, end).view(*prompts.shape[:2]).to(prompts.device)
 
-        generated = self.gpt.generate(
-            input_ids,
-            do_sample=self.do_sample,
-            max_length=self.max_len,
-            num_beams=self.beam_size,
-            num_return_sequences=self.num_return_sequences,
-            logits_processor=LogitsProcessorList([self.logits_processor]),
-            top_k=len(self.tokenizer),
-        )
+        if not self.training:
+            generated = self.gpt.generate(
+                input_ids,
+                do_sample=self.do_sample,
+                max_length=self.max_len,
+                num_beams=self.beam_size,
+                num_return_sequences=self.num_return_sequences,
+                logits_processor=LogitsProcessorList([self.logits_processor]),
+                top_k=len(self.tokenizer),
+            )
+        else:
+            # at test time we use beam search regardless of the decoding method
+            # used at training time
+            generated = self.gpt.generate(
+                input_ids,
+                do_sample=False,
+                max_length=self.max_len,
+                num_beams=5,
+                num_return_sequences=1,
+                logits_processor=LogitsProcessorList([self.logits_processor]),
+                top_k=len(self.tokenizer),
+            )
+
         if self.num_return_sequences > 1:
+            # remember to do this only at training, at test we don't use/need more sequences
             raise NotImplementedError
             # needs to handle multiple sequences on the receiver side as well
             # prompts = prompts.repeat_interleave(self.num_return_sequences, 0)
@@ -186,18 +202,20 @@ class ClipCapModel(nn.Module):
     def named_parameters(self, prefix="", recurse: bool = True):
         if self.freeze_mapper:
             return self.gpt.named_parameters()
-        return super(type(self), self).named_parameters()
+        return chain(self.gpt.named_parameters(), self.clip_project.named_parameters())
 
     def parameters(self, recurse: bool = True):
         if self.freeze_mapper:
             return self.gpt.parameters()
-        return super(type(self), self).parameters()
+        return chain(self.gpt.parameters(), self.clip_project.parameters())
 
     def train(self, mode: bool = True):
         self.training = mode
         if self.freeze_mapper:
             self.clip_project.eval()
-        self.train(mode)
+        else:
+            self.clip_project.train(mode)
+        self.gpt.train(mode)
         return self
 
 
