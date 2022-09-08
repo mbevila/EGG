@@ -98,8 +98,7 @@ def main(params):
         debug=opts.debug,
     )
 
-    trainer.train(opts.n_epochs)
-
+    # Computing accuracy and captions for out-of-the-box clipcap model
     test_loader = get_dataloader(
         dataset_dir=opts.dataset_dir,
         batch_size=opts.batch_size,
@@ -111,10 +110,24 @@ def main(params):
     trainer.game.test_logging_strategy = LoggingStrategy(
         False, False, True, True, True, True, False
     )
+    _, out_of_the_box_interaction = trainer.eval(test_loader)
+
+    # Training
+    trainer.game.test_logging_strategy = LoggingStrategy.minimal()
+
+    trainer.train(opts.n_epochs)
+
+    # Evaluating finetuned clipcap model on test
+    trainer.game.test_logging_strategy = LoggingStrategy(
+        False, False, True, True, True, True, False
+    )
     _, test_interaction = trainer.eval(test_loader)
 
+    log_stats(out_of_the_box_interaction, "OUT OF THE BOX ACCURACY")
+    dump_interaction(out_of_the_box_interaction, opts, name="out_of_the_box_")
+
     log_stats(test_interaction, "TEST SET")
-    dump_interaction(test_interaction, opts)
+    dump_interaction(test_interaction, opts, name="finetuned_")
 
     end = time.time()
     print(f"| Run took {end - start:.2f} seconds")
