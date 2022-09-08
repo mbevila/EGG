@@ -61,6 +61,7 @@ class ClipCapModel(nn.Module):
     def __init__(
         self,
         clip_prefix_size: int,
+        freeze_mapper: bool,
         nb_prefix_tokens: int,
         num_return_sequences: int = 1,
         do_sample: bool = False,
@@ -93,6 +94,8 @@ class ClipCapModel(nn.Module):
             hidden_dim = (gpt_embedding_size * nb_prefix_tokens) // 2
             output_dim = gpt_embedding_size * nb_prefix_tokens
             self.clip_project = MLP((input_dim, hidden_dim, output_dim))
+
+        self.freeze_mapper = freeze_mapper
 
     def maybe_patch_gpt(self, max_embeddings):
         if not getattr(self.gpt, "_patched", False):
@@ -180,6 +183,23 @@ class ClipCapModel(nn.Module):
         )
         return decoded_captions, log_probs, entropy, msg_lengths
 
+    def named_parameters(self, prefix="", recurse: bool = True):
+        if self.freeze_mapper:
+            return self.gpt.named_parameters()
+        return super(type(self), self).named_parameters()
+
+    def parameters(self, recurse: bool = True):
+        if self.freeze_mapper:
+            return self.gpt.parameters()
+        return super(type(self), self).parameters()
+
+    def train(self, mode: bool = True):
+        self.training = mode
+        if self.freeze_mapper:
+            self.clip_project.eval()
+        self.train(mode)
+        return self
+
 
 class ClipCapSender(nn.Module):
     def __init__(
@@ -187,6 +207,7 @@ class ClipCapSender(nn.Module):
         nb_prefix_tokens: int,
         clip_model: str,
         clipcap_path: str,
+        freeze_clipcap_mapper: bool = False,
         num_return_sequences: int = 1,
         do_sample: bool = False,
         beam_size: int = 5,
@@ -205,6 +226,7 @@ class ClipCapSender(nn.Module):
 
         self.clipcap = ClipCapModel(
             clip_prefix_size=self.clip_vit.output_dim,
+            freeze_mapper=freeze_clipcap_mapper,
             nb_prefix_tokens=nb_prefix_tokens,
             num_return_sequences=num_return_sequences,
             do_sample=do_sample,

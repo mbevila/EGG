@@ -46,6 +46,7 @@ def get_game_opts(parser):
         default=5,
         help="Number of beams when using beam serach decoding",
     )
+    group.add_argument("--freeze_clipcap_mapper", action="store_true", default=False)
     group.add_argument("--num_return_sequences", type=int, default=1)
     group.add_argument("--do_sample", action="store_true", default=False)
     group.add_argument(
