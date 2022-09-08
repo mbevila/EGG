@@ -11,7 +11,9 @@ import egg.core as core
 def get_data_opts(parser):
     group = parser.add_argument_group("data options")
     group.add_argument(
-        "--dataset_dir", default="/checkpoint/rdessi/datasets/flickr30k/"
+        "--dataset",
+        default="coco",
+        choices=["coco", "flickr"],
     )
     group.add_argument("--image_size", type=int, default=224, help="Image size")
     group.add_argument("--num_workers", type=int, default=8)

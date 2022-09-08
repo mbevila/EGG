@@ -13,7 +13,7 @@ class CocoDataset(CocoCaptions):
     def __getitem__(self, idx):
         image, captions = super().__getitem__(idx)
 
-        aux = {"all_captions": captions, "caption": captions[0]}
+        aux = {"all_captions": captions[:5], "caption": captions[0]}
 
         return image, torch.zeros(1), image, aux
 
