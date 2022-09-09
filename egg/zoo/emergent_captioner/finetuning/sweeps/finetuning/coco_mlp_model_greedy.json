@@ -1,8 +1,7 @@
 {
     "n_epoch": [1, 15],
-    "dataset": ["coco", "flickr"],
-    "clipcap_model_path": ["/private/home/rdessi/EGG/egg/zoo/emergent_captioner/clipclap_models/conceptual_weights.pt", "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/clipclap_models/coco_weights.pt"],
-    "batch_size": [128, 256],
+    "clipcap_model_path": ["/private/home/rdessi/EGG/egg/zoo/emergent_captioner/clipclap_models/coco_weights.pt"],
+    "batch_size": [128],
     "lr": [0.000001, 0.0000001, 0.0000005],
     "beam_size": [1],
     "baseline": ["mean"],
