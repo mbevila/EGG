@@ -11,12 +11,7 @@ from transformers import AdamW, get_linear_schedule_with_warmup
 import egg.core as core
 from egg.core import Callback, ConsoleLogger, Interaction
 from egg.core.interaction import LoggingStrategy
-from egg.zoo.emergent_captioner.dataloaders.flickr_dataloader import (
-    get_dataloader as get_flickr_dataloader,
-)
-from egg.zoo.emergent_captioner.dataloaders.coco_dataloader import (
-    get_dataloader as get_coco_dataloader,
-)
+from egg.zoo.emergent_captioner.dataloaders.coco_dataloader import CocoWrapper
 from egg.zoo.emergent_captioner.finetuning.game import build_game
 from egg.zoo.emergent_captioner.finetuning.opts import get_common_opts
 from egg.zoo.emergent_captioner.utils import (
@@ -61,23 +56,14 @@ def main(params):
     if not opts.distributed_context.is_distributed and opts.debug:
         breakpoint()
 
-    if opts.dataset.lower() == "coco":
-        train_loader = get_coco_dataloader(
-            image_dir="/datasets01/COCO/060817/train2014",
-            metadata_dir="/datasets01/COCO/060817/annotations/captions_train2014.json",
-            batch_size=opts.batch_size,
-            image_size=opts.image_size,
-            split="train",
-            num_workers=opts.num_workers,
-        )
-    elif opts.dataset.lower() == "flickr":
-        train_loader = get_flickr_dataloader(
-            dataset_dir="/checkpoint/rdessi/datasets/flickr30k/",
-            batch_size=opts.batch_size,
-            image_size=opts.image_size,
-            split="train",
-            num_workers=opts.num_workers,
-        )
+    data_kwargs = dict(
+        batch_size=opts.batch_size,
+        image_size=opts.image_size,
+        num_workers=opts.num_workers,
+    )
+
+    coco_wrapper = CocoWrapper()
+    train_loader = coco_wrapper.get_split(split="train", **data_kwargs)
 
     game = build_game(opts)
     print_grad_info(game.sender)
@@ -104,23 +90,8 @@ def main(params):
     )
 
     # Computing accuracy and captions for out-of-the-box clipcap model
-    if opts.dataset.lower() == "coco":
-        test_loader = get_coco_dataloader(
-            image_dir="/datasets01/COCO/060817/val2014",
-            metadata_dir="/datasets01/COCO/060817/annotations/captions_val2014.json",
-            batch_size=opts.batch_size,
-            image_size=opts.image_size,
-            split="test",
-            num_workers=opts.num_workers,
-        )
-    elif opts.dataset.lower() == "flickr":
-        test_loader = get_flickr_dataloader(
-            dataset_dir="/checkpoint/rdessi/datasets/flickr30k/",
-            batch_size=opts.batch_size,
-            image_size=opts.image_size,
-            split="test",
-            num_workers=opts.num_workers,
-        )
+
+    test_loader = coco_wrapper.get_split(split="test", **data_kwargs)
 
     trainer.game.test_logging_strategy = LoggingStrategy(
         False, False, True, True, True, True, False
