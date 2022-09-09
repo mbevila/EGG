@@ -36,7 +36,7 @@ class CocoDataset:
 
 
 class CocoWrapper:
-    def __init__(self, dataset_dir: str = "/private/home/rdessi/coco_dataset"):
+    def __init__(self, dataset_dir: str = "/checkpoint/rdessi/datasets/coco"):
         self.dataset_dir = Path(dataset_dir)
 
         self.split2samples = self._load_splits()
@@ -52,6 +52,11 @@ class CocoWrapper:
             split = img_ann["split"]
 
             split2samples[split].append((file_path, captions, img_id))
+        if "restval" in split2samples:
+            split2samples["train"] += split2samples["restval"]
+
+        for k, v in split2samples.items():
+            print(f"| Split {k} has {len(v)} elements.")
         return split2samples
 
     def get_split(
@@ -78,8 +83,3 @@ class CocoWrapper:
         )
 
         return loader
-
-
-if __name__ == "__main__":
-    print("Not doing anything")
-    pass
