@@ -131,7 +131,7 @@ class ClipCapModel(nn.Module):
         self.gpt.get_input_embeddings().weight.data[start:end] = prompts_flat
         input_ids = torch.arange(start, end).view(*prompts.shape[:2]).to(prompts.device)
 
-        if not self.training:
+        if self.training:
             generated = self.gpt.generate(
                 input_ids,
                 do_sample=self.do_sample,
