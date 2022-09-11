@@ -40,11 +40,11 @@ def log_stats(interaction, mode):
     print(json.dumps(dump), flush=True)
 
 
-def dump_interaction(interaction, opts):
+def dump_interaction(interaction, opts, name=""):
     if opts.checkpoint_dir:
         output_path = Path(opts.checkpoint_dir) / "interactions"
         output_path.mkdir(exist_ok=True, parents=True)
-        interaction_name = f"interaction_{opts.job_id}_{opts.task_id}"
+        interaction_name = f"interaction_{name}{opts.job_id}_{opts.task_id}"
 
         interaction.aux_input["args"] = opts
         torch.save(interaction, output_path / interaction_name)

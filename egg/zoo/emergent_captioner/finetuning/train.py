@@ -11,14 +11,14 @@ from transformers import AdamW, get_linear_schedule_with_warmup
 import egg.core as core
 from egg.core import Callback, ConsoleLogger, Interaction
 from egg.core.interaction import LoggingStrategy
-from egg.zoo.emergent_captioner.dataloaders.flickr_dataloader import get_dataloader
+from egg.zoo.emergent_captioner.dataloaders.coco_dataloader import CocoWrapper
 from egg.zoo.emergent_captioner.finetuning.game import build_game
 from egg.zoo.emergent_captioner.finetuning.opts import get_common_opts
 from egg.zoo.emergent_captioner.utils import (
     dump_interaction,
     get_sha,
     log_stats,
-    # print_grad_info,
+    print_grad_info,
     store_job_and_task_id,
 )
 
@@ -56,25 +56,17 @@ def main(params):
     if not opts.distributed_context.is_distributed and opts.debug:
         breakpoint()
 
-    train_loader = get_dataloader(
-        dataset_dir=opts.dataset_dir,
+    data_kwargs = dict(
         batch_size=opts.batch_size,
         image_size=opts.image_size,
-        split="train",
         num_workers=opts.num_workers,
     )
-    """
-    val_loader = get_dataloader(
-        dataset_dir=opts.dataset_dir,
-        batch_size=opts.batch_size,
-        image_size=opts.image_size,
-        split="val",
-        num_workers=opts.num_workers,
-    )
-    """
+
+    coco_wrapper = CocoWrapper()
+    train_loader = coco_wrapper.get_split(split="train", **data_kwargs)
 
     game = build_game(opts)
-    # print_grad_info(game.sender)
+    print_grad_info(game.sender)
 
     name2opt = {"adam": torch.optim.Adam, "adamw": AdamW}
 
@@ -93,28 +85,35 @@ def main(params):
         optimizer=optimizer,
         optimizer_scheduler=scheduler,
         train_data=train_loader,
-        # validation_data=val_loader,
         callbacks=[ConsoleLogger(as_json=True, print_train_loss=True), ModelSaver()],
         debug=opts.debug,
     )
 
+    # Computing accuracy and captions for out-of-the-box clipcap model
+
+    test_loader = coco_wrapper.get_split(split="test", **data_kwargs)
+
+    trainer.game.test_logging_strategy = LoggingStrategy(
+        False, False, True, True, True, True, False
+    )
+    _, out_of_the_box_interaction = trainer.eval(test_loader)
+
+    # Training
+    trainer.game.test_logging_strategy = LoggingStrategy.minimal()
+
     trainer.train(opts.n_epochs)
 
-    test_loader = get_dataloader(
-        dataset_dir=opts.dataset_dir,
-        batch_size=opts.batch_size,
-        image_size=opts.image_size,
-        split="test",
-        num_workers=opts.num_workers,
-    )
-
+    # Evaluating finetuned clipcap model on test
     trainer.game.test_logging_strategy = LoggingStrategy(
         False, False, True, True, True, True, False
     )
     _, test_interaction = trainer.eval(test_loader)
 
+    log_stats(out_of_the_box_interaction, "OUT OF THE BOX ACCURACY")
+    dump_interaction(out_of_the_box_interaction, opts, name="out_of_the_box_")
+
     log_stats(test_interaction, "TEST SET")
-    dump_interaction(test_interaction, opts)
+    dump_interaction(test_interaction, opts, name="finetuned_")
 
     end = time.time()
     print(f"| Run took {end - start:.2f} seconds")

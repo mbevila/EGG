@@ -211,6 +211,7 @@ def build_game(opts):
         nb_prefix_tokens=opts.nb_prefix_tokens,
         clip_model=opts.sender_clip_model,
         clipcap_path=opts.clipcap_model_path,
+        freeze_clipcap_mapper=opts.freeze_clipcap_mapper,
         num_return_sequences=opts.num_return_sequences,
         do_sample=opts.do_sample,
         beam_size=opts.beam_size,

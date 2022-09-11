@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from itertools import chain
 from typing import Any, Dict, Tuple
 
 import clip
@@ -61,6 +62,7 @@ class ClipCapModel(nn.Module):
     def __init__(
         self,
         clip_prefix_size: int,
+        freeze_mapper: bool,
         nb_prefix_tokens: int,
         num_return_sequences: int = 1,
         do_sample: bool = False,
@@ -93,6 +95,8 @@ class ClipCapModel(nn.Module):
             hidden_dim = (gpt_embedding_size * nb_prefix_tokens) // 2
             output_dim = gpt_embedding_size * nb_prefix_tokens
             self.clip_project = MLP((input_dim, hidden_dim, output_dim))
+
+        self.freeze_mapper = freeze_mapper
 
     def maybe_patch_gpt(self, max_embeddings):
         if not getattr(self.gpt, "_patched", False):
@@ -127,16 +131,31 @@ class ClipCapModel(nn.Module):
         self.gpt.get_input_embeddings().weight.data[start:end] = prompts_flat
         input_ids = torch.arange(start, end).view(*prompts.shape[:2]).to(prompts.device)
 
-        generated = self.gpt.generate(
-            input_ids,
-            do_sample=self.do_sample,
-            max_length=self.max_len,
-            num_beams=self.beam_size,
-            num_return_sequences=self.num_return_sequences,
-            logits_processor=LogitsProcessorList([self.logits_processor]),
-            top_k=len(self.tokenizer),
-        )
+        if self.training:
+            generated = self.gpt.generate(
+                input_ids,
+                do_sample=self.do_sample,
+                max_length=self.max_len,
+                num_beams=self.beam_size,
+                num_return_sequences=self.num_return_sequences,
+                logits_processor=LogitsProcessorList([self.logits_processor]),
+                top_k=len(self.tokenizer),
+            )
+        else:
+            # at test time we use beam search regardless of the decoding method
+            # used at training time
+            generated = self.gpt.generate(
+                input_ids,
+                do_sample=False,
+                max_length=self.max_len,
+                num_beams=5,
+                num_return_sequences=1,
+                logits_processor=LogitsProcessorList([self.logits_processor]),
+                top_k=len(self.tokenizer),
+            )
+
         if self.num_return_sequences > 1:
+            # remember to do this only at training, at test we don't use/need more sequences
             raise NotImplementedError
             # needs to handle multiple sequences on the receiver side as well
             # prompts = prompts.repeat_interleave(self.num_return_sequences, 0)
@@ -158,7 +177,7 @@ class ClipCapModel(nn.Module):
         mask = (extra_tokens == 0).float()
 
         # compute normalized log_probs of generated captions
-        log_probs = torch.gather(logits, dim=2, index=indices.unsqueeze(1)).squeeze()
+        log_probs = torch.gather(logits, dim=2, index=indices.unsqueeze(2)).squeeze()
         log_probs *= mask
         log_probs = log_probs.sum(1) / msg_lengths
 
@@ -180,6 +199,25 @@ class ClipCapModel(nn.Module):
         )
         return decoded_captions, log_probs, entropy, msg_lengths
 
+    def named_parameters(self, prefix="", recurse: bool = True):
+        if self.freeze_mapper:
+            return self.gpt.named_parameters()
+        return chain(self.gpt.named_parameters(), self.clip_project.named_parameters())
+
+    def parameters(self, recurse: bool = True):
+        if self.freeze_mapper:
+            return self.gpt.parameters()
+        return chain(self.gpt.parameters(), self.clip_project.parameters())
+
+    def train(self, mode: bool = True):
+        self.training = mode
+        if self.freeze_mapper:
+            self.clip_project.eval()
+        else:
+            self.clip_project.train(mode)
+        self.gpt.train(mode)
+        return self
+
 
 class ClipCapSender(nn.Module):
     def __init__(
@@ -187,6 +225,7 @@ class ClipCapSender(nn.Module):
         nb_prefix_tokens: int,
         clip_model: str,
         clipcap_path: str,
+        freeze_clipcap_mapper: bool = False,
         num_return_sequences: int = 1,
         do_sample: bool = False,
         beam_size: int = 5,
@@ -205,6 +244,7 @@ class ClipCapSender(nn.Module):
 
         self.clipcap = ClipCapModel(
             clip_prefix_size=self.clip_vit.output_dim,
+            freeze_mapper=freeze_clipcap_mapper,
             nb_prefix_tokens=nb_prefix_tokens,
             num_return_sequences=num_return_sequences,
             do_sample=do_sample,
@@ -212,6 +252,7 @@ class ClipCapSender(nn.Module):
             max_len=max_len,
         )
         if clipcap_path is not None:
+            print("| LOADED CLIPCAP MODEL")
             self.clipcap.load_state_dict(torch.load(clipcap_path))
 
     def encode_images(self, images: torch.Tensor):

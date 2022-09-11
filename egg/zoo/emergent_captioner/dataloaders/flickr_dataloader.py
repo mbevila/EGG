@@ -188,7 +188,7 @@ class Flickr30kDataset(VisionDataset):
         all_captions = [elem["sentence"] for elem in sents]
 
         aux = {
-            "image_ids": torch.Tensor([int(img_path.stem)]),
+            "image_ids": img_path.stem,
             "caption": all_captions[0],
             "all_captions": all_captions,
         }
