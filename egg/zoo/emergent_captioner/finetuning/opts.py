@@ -12,7 +12,7 @@ def get_data_opts(parser):
     group = parser.add_argument_group("data options")
     group.add_argument(
         "--dataset",
-        choices=["coco", "flickr"],
+        choices=["coco", "flickr", "conceptual_captions"],
         default="coco",
     )
     group.add_argument("--image_size", type=int, default=224, help="Image size")

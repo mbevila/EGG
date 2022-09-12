@@ -13,6 +13,9 @@ from egg.core import Callback, ConsoleLogger, Interaction
 from egg.core.interaction import LoggingStrategy
 
 from egg.zoo.emergent_captioner.dataloaders.coco_dataloader import CocoWrapper
+from egg.zoo.emergent_captioner.dataloaders.conceptual_captions_dataloader import (
+    get_dataloader as get_conceptual_dataloader,
+)
 from egg.zoo.emergent_captioner.dataloaders.flickr_dataloader import FlickrWrapper
 from egg.zoo.emergent_captioner.finetuning.game import build_game
 from egg.zoo.emergent_captioner.finetuning.opts import get_common_opts
@@ -73,6 +76,9 @@ def main(params):
         train_loader = flickr_wrapper.get_split(split="train", **data_kwargs)
         test_loader = flickr_wrapper.get_split(split="test", **data_kwargs)
     elif opts.dataset == "conceptual_captions":
+        train_loader = get_conceptual_dataloader(split="train", **data_kwargs)
+        test_loader = get_conceptual_dataloader(split="test", **data_kwargs)
+    else:
         raise NotImplementedError
 
     game = build_game(opts)
