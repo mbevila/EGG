@@ -10,6 +10,11 @@ import egg.core as core
 
 def get_data_opts(parser):
     group = parser.add_argument_group("data options")
+    group.add_argument(
+        "--dataset",
+        choices=["coco", "flickr"],
+        default="coco",
+    )
     group.add_argument("--image_size", type=int, default=224, help="Image size")
     group.add_argument("--num_workers", type=int, default=8)
 
@@ -79,6 +84,18 @@ def get_optimizer_opts(parser):
 def get_common_opts(params):
     parser = argparse.ArgumentParser()
 
+    parser.add_argument(
+        "--eval_out_of_the_box",
+        action="store_true",
+        default=False,
+        help="Performa an evaluation loop before training the model",
+    )
+    parser.add_argument(
+        "--eval_only",
+        action="store_true",
+        default=False,
+        help="Run only the evaluation loop on the test",
+    )
     parser.add_argument(
         "--debug",
         action="store_true",
