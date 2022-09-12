@@ -5,6 +5,7 @@
 
 from itertools import chain
 from typing import Any, Dict, Tuple
+import sys
 
 import clip
 import torch
@@ -252,7 +253,7 @@ class ClipCapSender(nn.Module):
             max_len=max_len,
         )
         if clipcap_path is not None:
-            print("| LOADED CLIPCAP MODEL")
+            print("| LOADED CLIPCAP MODEL", file=sys.stderr)
             self.clipcap.load_state_dict(torch.load(clipcap_path))
 
     def encode_images(self, images: torch.Tensor):

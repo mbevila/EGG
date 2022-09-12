@@ -8,6 +8,7 @@ import os
 from collections import defaultdict
 from pathlib import Path
 from PIL import Image
+import sys
 
 import torch
 
@@ -56,7 +57,7 @@ class CocoWrapper:
             split2samples["train"] += split2samples["restval"]
 
         for k, v in split2samples.items():
-            print(f"| Split {k} has {len(v)} elements.")
+            print(f"| Split {k} has {len(v)} elements.", file=sys.stderr)
         return split2samples
 
     def get_split(
