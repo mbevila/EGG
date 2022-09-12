@@ -1,0 +1,6 @@
+{
+    "dataset": ["coco", "flickr"],
+    "recv_clip_model": ["ViT-B/16", "ViT-B/32"],
+    "batch_size": [10, 100, 200, 500, 1000],
+    "random_seed": [111]
+}

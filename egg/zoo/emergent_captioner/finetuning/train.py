@@ -11,7 +11,9 @@ from transformers import AdamW, get_linear_schedule_with_warmup
 import egg.core as core
 from egg.core import Callback, ConsoleLogger, Interaction
 from egg.core.interaction import LoggingStrategy
+
 from egg.zoo.emergent_captioner.dataloaders.coco_dataloader import CocoWrapper
+from egg.zoo.emergent_captioner.dataloaders.flickr_dataloader import FlickrWrapper
 from egg.zoo.emergent_captioner.finetuning.game import build_game
 from egg.zoo.emergent_captioner.finetuning.opts import get_common_opts
 from egg.zoo.emergent_captioner.utils import (
@@ -62,8 +64,16 @@ def main(params):
         num_workers=opts.num_workers,
     )
 
-    coco_wrapper = CocoWrapper()
-    train_loader = coco_wrapper.get_split(split="train", **data_kwargs)
+    if opts.dataset == "coco":
+        coco_wrapper = CocoWrapper()
+        train_loader = coco_wrapper.get_split(split="train", **data_kwargs)
+        test_loader = coco_wrapper.get_split(split="test", **data_kwargs)
+    elif opts.dataset == "flickr":
+        flickr_wrapper = FlickrWrapper()
+        train_loader = flickr_wrapper.get_split(split="train", **data_kwargs)
+        test_loader = flickr_wrapper.get_split(split="test", **data_kwargs)
+    elif opts.dataset == "conceptual_captions":
+        raise NotImplementedError
 
     game = build_game(opts)
     print_grad_info(game.sender)
@@ -91,17 +101,17 @@ def main(params):
 
     # Computing accuracy and captions for out-of-the-box clipcap model
 
-    test_loader = coco_wrapper.get_split(split="test", **data_kwargs)
-
-    trainer.game.test_logging_strategy = LoggingStrategy(
-        False, False, True, True, True, True, False
-    )
-    _, out_of_the_box_interaction = trainer.eval(test_loader)
+    if opts.eval_out_of_the_box:
+        trainer.game.test_logging_strategy = LoggingStrategy(
+            False, False, True, True, True, True, False
+        )
+        _, out_of_the_box_interaction = trainer.eval(test_loader)
 
     # Training
     trainer.game.test_logging_strategy = LoggingStrategy.minimal()
 
-    trainer.train(opts.n_epochs)
+    if not opts.eval_only:
+        trainer.train(opts.n_epochs)
 
     # Evaluating finetuned clipcap model on test
     trainer.game.test_logging_strategy = LoggingStrategy(
@@ -109,8 +119,9 @@ def main(params):
     )
     _, test_interaction = trainer.eval(test_loader)
 
-    log_stats(out_of_the_box_interaction, "OUT OF THE BOX ACCURACY")
-    dump_interaction(out_of_the_box_interaction, opts, name="out_of_the_box_")
+    if opts.eval_out_of_the_box:
+        log_stats(out_of_the_box_interaction, "OUT OF THE BOX ACCURACY")
+        dump_interaction(out_of_the_box_interaction, opts, name="out_of_the_box_")
 
     log_stats(test_interaction, "TEST SET")
     dump_interaction(test_interaction, opts, name="finetuned_")
