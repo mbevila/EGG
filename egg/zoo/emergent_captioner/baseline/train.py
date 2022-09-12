@@ -41,6 +41,8 @@ def main(params):
         choices=["coco", "flickr"],
         default="coco",
     )
+    parser.add_argument("--image_size", type=int, default=224, help="Image size")
+    parser.add_argument("--num_workers", type=int, default=8)
 
     opts = core.init(arg_parser=parser, params=params)
 
