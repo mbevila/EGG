@@ -7,13 +7,15 @@ import argparse
 import time
 
 import torch
-from transformers import AdamW
 
 import egg.core as core
 from egg.core.interaction import LoggingStrategy
 from egg.zoo.emergent_captioner.baseline.game import build_game
-from egg.zoo.emergent_captioner.dataloaders.coco_dataloader import CocoWrapper
-from egg.zoo.emergent_captioner.dataloaders.flickr_dataloader import FlickrWrapper
+from egg.zoo.emergent_captioner.dataloaders import (
+    CocoWrapper,
+    ConceptualCaptionsWrapper,
+    FlickrWrapper,
+)
 from egg.zoo.emergent_captioner.utils import (
     get_sha,
     log_stats,
@@ -25,11 +27,12 @@ def main(params):
     start = time.time()
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset_dir", default=None)
     parser.add_argument(
         "--debug",
         action="store_true",
         default=False,
-        help="Run the game with pdb enabled",
+        help="Run the game with pdb enabled and on only 10 batches",
     )
     parser.add_argument(
         "--recv_clip_model",
@@ -38,7 +41,7 @@ def main(params):
     )
     parser.add_argument(
         "--dataset",
-        choices=["coco", "flickr"],
+        choices=["coco", "flickr", "conceptual"],
         default="coco",
     )
     parser.add_argument("--image_size", type=int, default=224, help="Image size")
@@ -53,26 +56,27 @@ def main(params):
     if not opts.distributed_context.is_distributed and opts.debug:
         breakpoint()
 
+    name2wrapper = {
+        "conceptual": ConceptualCaptionsWrapper,
+        "coco": CocoWrapper,
+        "flickr": FlickrWrapper,
+    }
+
+    wrapper = name2wrapper[opts.dataset](opts.dataset_dir)
+
     data_kwargs = dict(
         batch_size=opts.batch_size,
         image_size=opts.image_size,
         num_workers=opts.num_workers,
+        seed=opts.random_seed,
     )
-
-    if opts.dataset == "coco":
-        coco_wrapper = CocoWrapper()
-        test_loader = coco_wrapper.get_split(split="test", **data_kwargs)
-    elif opts.dataset == "flickr":
-        flickr_wrapper = FlickrWrapper()
-        test_loader = flickr_wrapper.get_split(split="test", **data_kwargs)
-    elif opts.dataset == "conceptual_captions":
-        raise NotImplementedError
+    test_loader = wrapper.get_split(split="test", **data_kwargs)
 
     game = build_game(opts)
 
     trainer = core.Trainer(
         game=game,
-        optimizer=AdamW(game.parameters(), lr=opts.lr),
+        optimizer=torch.optim.Adam(game.parameters(), lr=opts.lr),
         train_data=None,
         debug=opts.debug,
     )
@@ -91,7 +95,6 @@ def main(params):
 
 if __name__ == "__main__":
     torch.autograd.set_detect_anomaly(True)
-    # torch.set_deterministic(True)
     import sys
 
     main(sys.argv[1:])
