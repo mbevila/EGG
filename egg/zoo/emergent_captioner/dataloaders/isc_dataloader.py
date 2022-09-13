@@ -22,7 +22,7 @@ def pil_loader(path: str) -> Image.Image:
 class ISC2021Dataset(VisionDataset):
     def __init__(
         self,
-        dataset_dir: str = "/homedtcl/nrakotonirina/datasets/isc2021",
+        dataset_dir: str = "/checkpoint/matthijs/image_similarity_challenge/dataset_dev_renamed",
         test_file: str = "simimage_dataset.txt",
         num_distractors: int = 63,
         transform: Optional[Callable] = None,
@@ -30,7 +30,7 @@ class ISC2021Dataset(VisionDataset):
         super(ISC2021Dataset, self).__init__(dataset_dir, transform=transform)
         dataset_dir = Path(dataset_dir)
 
-        with open(dataset_dir / test_file) as f:
+        with open(test_file) as f:
             images_list = set(f.read().splitlines())
         self.samples = []
         num_distractors = min(num_distractors, 63)
@@ -53,27 +53,33 @@ class ISC2021Dataset(VisionDataset):
         images = [pil_loader(i) for i in images_path]
         if self.transform:
             images = [self.transform(i) for i in images]
-        return images[0], images[1], images[2:]
+        return images[0].unsqueeze(0), torch.zeros(1), torch.stack(images[1:], dim=0)
+
+
+def collate(batch):
+    return batch
 
 
 def get_dataloader(
-    dataset_dir: str = "/homedtcl/nrakotonirina/datasets/isc2021",
+    dataset_dir: str = "/checkpoint/matthijs/image_similarity_challenge/dataset_dev_renamed",
+    test_file: str = "/checkpoint/rdessi/datasets/simimage_dataset.txt",
     num_distractors: int = 63,
-    batch_size: int = 32,
     image_size: int = 32,
     num_workers: int = 8,
 ):
 
     ds = ISC2021Dataset(
         dataset_dir=dataset_dir,
+        test_file=test_file,
         num_distractors=num_distractors,
         transform=get_transform(image_size),
     )
     loader = torch.utils.data.DataLoader(
         ds,
-        batch_size=batch_size,
-        num_workers=num_workers,
+        batch_size=1,
+        collate_fn=collate,
         shuffle=False,
+        num_workers=num_workers,
         pin_memory=True,
         drop_last=True,
     )
@@ -81,10 +87,8 @@ def get_dataloader(
 
 
 if __name__ == "__main__":
-    dataset_dir = "/homedtcl/nrakotonirina/datasets/isc2021"
-    loader = get_dataloader(
-        dataset_dir=dataset_dir, num_distractors=6, bacth_size=8, num_workers=0
-    )
+    dataset_dir = "/checkpoint/matthijs/image_similarity_challenge/dataset_dev_renamed"
+    loader = get_dataloader(dataset_dir=dataset_dir, num_distractors=6, num_workers=0)
 
     for i, sample in enumerate(loader):
         print(sample, len(sample[-1]))
