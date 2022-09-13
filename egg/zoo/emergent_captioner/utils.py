@@ -35,13 +35,14 @@ def store_job_and_task_id(opts):
 
 
 def log_stats(interaction, mode):
-    dump = dict((k, v.mean().item()) for k, v in interaction.aux.items())
-    dump.update(dict(mode=mode))
-    print(json.dumps(dump), flush=True)
+    if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+        dump = dict((k, v.mean().item()) for k, v in interaction.aux.items())
+        dump.update(dict(mode=mode))
+        print(json.dumps(dump), flush=True)
 
 
 def dump_interaction(interaction, opts, name=""):
-    if opts.checkpoint_dir:
+    if opts.checkpoint_dir and opts.distributed_context.is_leader:
         output_path = Path(opts.checkpoint_dir) / "interactions"
         output_path.mkdir(exist_ok=True, parents=True)
         interaction_name = f"interaction_{name}{opts.job_id}_{opts.task_id}"

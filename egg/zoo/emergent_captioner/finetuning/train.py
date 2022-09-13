@@ -12,11 +12,11 @@ import egg.core as core
 from egg.core import Callback, ConsoleLogger, Interaction
 from egg.core.interaction import LoggingStrategy
 
-from egg.zoo.emergent_captioner.dataloaders.coco_dataloader import CocoWrapper
-from egg.zoo.emergent_captioner.dataloaders.conceptual_captions_dataloader import (
-    get_dataloader as get_conceptual_dataloader,
+from egg.zoo.emergent_captioner.dataloaders import (
+    CocoWrapper,
+    ConceptualCaptionsWrapper,
+    FlickrWrapper,
 )
-from egg.zoo.emergent_captioner.dataloaders.flickr_dataloader import FlickrWrapper
 from egg.zoo.emergent_captioner.finetuning.game import build_game
 from egg.zoo.emergent_captioner.finetuning.opts import get_common_opts
 from egg.zoo.emergent_captioner.utils import (
@@ -61,25 +61,22 @@ def main(params):
     if not opts.distributed_context.is_distributed and opts.debug:
         breakpoint()
 
+    name2wrapper = {
+        "conceptual": ConceptualCaptionsWrapper,
+        "coco": CocoWrapper,
+        "flickr": FlickrWrapper,
+    }
+
+    wrapper = name2wrapper[opts.dataset](opts.dataset_dir)
+
     data_kwargs = dict(
         batch_size=opts.batch_size,
         image_size=opts.image_size,
         num_workers=opts.num_workers,
+        seed=opts.random_seed,
     )
-
-    if opts.dataset == "coco":
-        coco_wrapper = CocoWrapper()
-        train_loader = coco_wrapper.get_split(split="train", **data_kwargs)
-        test_loader = coco_wrapper.get_split(split="test", **data_kwargs)
-    elif opts.dataset == "flickr":
-        flickr_wrapper = FlickrWrapper()
-        train_loader = flickr_wrapper.get_split(split="train", **data_kwargs)
-        test_loader = flickr_wrapper.get_split(split="test", **data_kwargs)
-    elif opts.dataset == "conceptual_captions":
-        train_loader = get_conceptual_dataloader(split="train", **data_kwargs)
-        test_loader = get_conceptual_dataloader(split="test", **data_kwargs)
-    else:
-        raise NotImplementedError
+    train_loader = wrapper.get_split(split="train", **data_kwargs)
+    test_loader = wrapper.get_split(split="test", **data_kwargs)
 
     game = build_game(opts)
     print_grad_info(game.sender)
