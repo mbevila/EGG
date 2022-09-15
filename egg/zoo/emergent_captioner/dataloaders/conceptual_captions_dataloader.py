@@ -12,15 +12,11 @@ from typing import Callable, Optional
 from PIL import Image, UnidentifiedImageError
 
 import torch
+import torch.distributed as dist
 from torchvision.datasets import VisionDataset
+from torch.utils.data.distributed import DistributedSampler
 
 from egg.zoo.emergent_captioner.dataloaders.utils import get_transform
-
-
-def pil_loader(path: str) -> Image.Image:
-    with open(path, "rb") as f:
-        img = Image.open(f)
-        return img.convert("RGB")
 
 
 class ConceptualCaptionsDataset(VisionDataset):
@@ -63,7 +59,8 @@ class ConceptualCaptionsDataset(VisionDataset):
         img_path = self.image_folder / fname
 
         try:
-            image = pil_loader(img_path)
+            with open(img_path, "rb") as f:
+                image = Image.open(f).convert("RGB")
         except UnidentifiedImageError:
             return self.__getitem__(random.choice(self.samples))
 
@@ -71,43 +68,59 @@ class ConceptualCaptionsDataset(VisionDataset):
             image = self.transform(image)
 
         aux = {
-            "image_ids": fname,
+            "img_id": fname,
             "caption": caption,
             "all_captions": caption,
         }
         return image, torch.tensor([index]), image, aux
 
 
-def get_dataloader(
-    dataset_dir: str = "/private/home/rdessi/ConceptualCaptions",
-    batch_size: int = 32,
-    image_size: int = 32,
-    split: str = "train",
-    num_workers: int = 8,
-):
+class ConceptualCaptionsWrapper:
+    def __init__(self, dataset_dir: str):
+        if dataset_dir is None:
+            dataset_dir = "/private/home/rdessi/ConceptualCaptions"
+        self.dataset_dir = Path(dataset_dir)
 
-    ds = ConceptualCaptionsDataset(
-        dataset_dir=dataset_dir, split=split, transform=get_transform(image_size)
-    )
+    def get_split(
+        self,
+        split: str,
+        batch_size: int,
+        image_size: int,
+        num_workers: int = 8,
+        seed: int = 111,
+    ):
+        ds = ConceptualCaptionsDataset(
+            dataset_dir=self.dataset_dir,
+            split=split,
+            transform=get_transform(image_size),
+        )
+        sampler = None
+        if dist.is_initialized():
+            sampler = DistributedSampler(
+                ds, shuffle=split != "test", drop_last=True, seed=seed
+            )
 
-    loader = torch.utils.data.DataLoader(
-        ds,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        shuffle=split != "test",
-        pin_memory=True,
-        drop_last=True,
-    )
-    return loader
+        print(f"shuff is {split != 'test' and sampler is None}")
+        loader = torch.utils.data.DataLoader(
+            ds,
+            batch_size=batch_size,
+            shuffle=split != "test" and sampler is None,
+            sampler=sampler,
+            num_workers=num_workers,
+            pin_memory=True,
+            drop_last=True,
+        )
+        return loader
 
 
 if __name__ == "__main__":
     dataset_dir = "/private/home/rdessi/ConceptualCaptions"
-    dl = get_dataloader(
-        dataset_dir=dataset_dir,
+    wrapper = ConceptualCaptionsWrapper(dataset_dir)
+    dl = wrapper.get_split(
         split="test",
         batch_size=1,
-        num_workers=0,
+        image_size=224,
+        num_workers=8,
     )
 
     for i, (_, idx, _, aux) in enumerate(dl):

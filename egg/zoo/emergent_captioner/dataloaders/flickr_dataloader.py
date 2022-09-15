@@ -10,6 +10,8 @@ from pathlib import Path
 from PIL import Image
 
 import torch
+import torch.distributed as dist
+from torch.utils.data.distributed import DistributedSampler
 
 from egg.zoo.emergent_captioner.dataloaders.utils import get_transform
 
@@ -36,7 +38,9 @@ class FlickrDataset:
 
 
 class FlickrWrapper:
-    def __init__(self, dataset_dir: str = "/checkpoint/rdessi/datasets/flickr30k"):
+    def __init__(self, dataset_dir: str):
+        if dataset_dir is None:
+            dataset_dir = "/checkpoint/rdessi/datasets/flickr30k"
         self.dataset_dir = Path(dataset_dir)
 
         self.split2samples = self._load_splits()
@@ -65,19 +69,26 @@ class FlickrWrapper:
         batch_size: int,
         image_size: int,
         num_workers: int = 8,
+        seed: int = 111,
     ):
 
         samples = self.split2samples[split]
         assert samples, f"Wrong split {split}"
 
-        dataset = FlickrDataset(
+        ds = FlickrDataset(
             self.dataset_dir, samples, transform=get_transform(image_size)
         )
+        sampler = None
+        if dist.is_initialized():
+            sampler = DistributedSampler(
+                ds, shuffle=split != "test", drop_last=True, seed=seed
+            )
         loader = torch.utils.data.DataLoader(
-            dataset,
+            ds,
             batch_size=batch_size,
+            shuffle=split != "test" and sampler is None,
+            sampler=sampler,
             num_workers=num_workers,
-            shuffle=split != "test",
             pin_memory=True,
             drop_last=True,
         )
