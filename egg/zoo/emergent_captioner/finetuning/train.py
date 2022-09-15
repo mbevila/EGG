@@ -23,6 +23,7 @@ from egg.zoo.emergent_captioner.utils import (
     get_sha,
     log_stats,
     print_grad_info,
+    setup_for_distributed,
     store_job_and_task_id,
 )
 
@@ -54,6 +55,7 @@ def main(params):
     opts = get_common_opts(params=params)
 
     store_job_and_task_id(opts)
+    setup_for_distributed(opts.distributed_context.is_leader)
     print(opts)
     print(get_sha())
 
