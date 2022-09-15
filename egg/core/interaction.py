@@ -3,7 +3,6 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import itertools
 from dataclasses import dataclass
 from typing import Dict, Iterable, Optional
 
@@ -187,22 +186,6 @@ class Interaction:
         ), "torch.distributed must be initialized beforehand"
         world_size = distrib.get_world_size()
 
-        def send_collect_obj(obj):
-            assert obj is not None
-
-            if isinstance(obj, torch.Tensor):
-                tnsr = obj.contiguous().cuda()
-                lst = [torch.zeros_like(tnsr) for _ in range(world_size)]
-                distrib.all_gather(lst, tnsr)
-                return torch.cat(lst, dim=0).to("cpu")
-            elif isinstance(obj, list):
-                lst = [[] for _ in range(world_size)]
-                distrib.all_gather_object(lst, obj)
-                merged_list = [list(elem) for elem in zip(*lst)]
-                return list(itertools.chain.from_iterable(merged_list))
-            else:
-                raise NotImplementedError(f"Cannot gather object of type {type(obj)}")
-
         def send_collect_tensor(tnsr):
             assert tnsr is not None
 
@@ -218,7 +201,7 @@ class Interaction:
             new_d = {}
             for k, v in d.items():
                 if v is not None:
-                    v = send_collect_obj(v)
+                    v = send_collect_tensor(v)
                 new_d[k] = v
 
             return new_d
