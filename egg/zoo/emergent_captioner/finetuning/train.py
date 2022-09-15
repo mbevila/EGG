@@ -10,7 +10,6 @@ from transformers import AdamW, get_linear_schedule_with_warmup
 
 import egg.core as core
 from egg.core import Callback, ConsoleLogger, Interaction
-from egg.core.interaction import LoggingStrategy
 
 from egg.zoo.emergent_captioner.dataloaders import (
     CocoWrapper,
@@ -105,21 +104,12 @@ def main(params):
     # Computing accuracy and captions for out-of-the-box clipcap model
 
     if opts.eval_out_of_the_box:
-        trainer.game.test_logging_strategy = LoggingStrategy(
-            False, False, True, True, True, True, False
-        )
         _, out_of_the_box_interaction = trainer.eval(test_loader)
 
     # Training
-    trainer.game.test_logging_strategy = LoggingStrategy.minimal()
-
     if not opts.eval_only:
         trainer.train(opts.n_epochs)
 
-    # Evaluating finetuned clipcap model on test
-    trainer.game.test_logging_strategy = LoggingStrategy(
-        False, False, True, True, True, True, False
-    )
     _, test_interaction = trainer.eval(test_loader)
 
     if opts.eval_out_of_the_box:
