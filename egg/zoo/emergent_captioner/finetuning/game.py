@@ -156,7 +156,10 @@ def build_game(opts):
 
     sender.patch_model(opts.batch_size, opts.nb_prefix_tokens)
     receiver = ClipReceiver(clip_model=opts.recv_clip_model)
-    test_logging_strategy = LoggingStrategy(False, False, True, True, True, True, False)
+    # test_logging_strategy = LoggingStrategy(False, False, True, True, True, True, False)
+    test_logging_strategy = LoggingStrategy(
+        False, False, True, False, False, False, False
+    )
 
     # TODO add option to use other losses
     # remember that with non-diff losses you should use a wrapper around recv
