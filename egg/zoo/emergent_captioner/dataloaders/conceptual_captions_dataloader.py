@@ -14,9 +14,11 @@ from PIL import Image, UnidentifiedImageError
 import torch
 import torch.distributed as dist
 from torchvision.datasets import VisionDataset
-from torch.utils.data.distributed import DistributedSampler
 
-from egg.zoo.emergent_captioner.dataloaders.utils import get_transform
+from egg.zoo.emergent_captioner.dataloaders.utils import (
+    get_transform,
+    MyDistributedSampler,
+)
 
 
 class ConceptualCaptionsDataset(VisionDataset):
@@ -96,11 +98,10 @@ class ConceptualCaptionsWrapper:
         )
         sampler = None
         if dist.is_initialized():
-            sampler = DistributedSampler(
+            sampler = MyDistributedSampler(
                 ds, shuffle=split != "test", drop_last=True, seed=seed
             )
 
-        print(f"shuff is {split != 'test' and sampler is None}")
         loader = torch.utils.data.DataLoader(
             ds,
             batch_size=batch_size,

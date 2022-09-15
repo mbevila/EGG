@@ -11,9 +11,11 @@ from PIL import Image
 
 import torch
 import torch.distributed as dist
-from torch.utils.data.distributed import DistributedSampler
 
-from egg.zoo.emergent_captioner.dataloaders.utils import get_transform
+from egg.zoo.emergent_captioner.dataloaders.utils import (
+    get_transform,
+    MyDistributedSampler,
+)
 
 
 class CocoDataset:
@@ -79,7 +81,7 @@ class CocoWrapper:
 
         sampler = None
         if dist.is_initialized():
-            sampler = DistributedSampler(
+            sampler = MyDistributedSampler(
                 ds, shuffle=split != "test", drop_last=True, seed=seed
             )
 

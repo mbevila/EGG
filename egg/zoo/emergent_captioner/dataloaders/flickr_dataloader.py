@@ -11,9 +11,11 @@ from PIL import Image
 
 import torch
 import torch.distributed as dist
-from torch.utils.data.distributed import DistributedSampler
 
-from egg.zoo.emergent_captioner.dataloaders.utils import get_transform
+from egg.zoo.emergent_captioner.dataloaders.utils import (
+    get_transform,
+    MyDistributedSampler,
+)
 
 
 class FlickrDataset:
@@ -32,7 +34,7 @@ class FlickrDataset:
         if self.transform is not None:
             image = self.transform(image)
 
-        aux = {"all_captions": captions[:5], "caption": captions[0], "img_id": image_id}
+        aux = {"caption": captions[0], "img_id": image_id}
 
         return image, torch.tensor([idx]), image, aux
 
@@ -80,7 +82,7 @@ class FlickrWrapper:
         )
         sampler = None
         if dist.is_initialized():
-            sampler = DistributedSampler(
+            sampler = MyDistributedSampler(
                 ds, shuffle=split != "test", drop_last=True, seed=seed
             )
         loader = torch.utils.data.DataLoader(
