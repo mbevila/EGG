@@ -3,18 +3,12 @@
 # This source code is licensed under the MIT license fod in the
 # LICENSE file in the root directory of this source tree.
 
-import csv
-import os
-
-# import random
-import zlib
 from pathlib import Path
 from typing import Callable, Optional
 from PIL import Image
 
 import torch
 import torch.distributed as dist
-from timebudget import timebudget
 from torchvision.datasets import VisionDataset
 
 from egg.zoo.emergent_captioner.dataloaders.utils import (
@@ -42,34 +36,20 @@ class ConceptualCaptionsDataset(VisionDataset):
             annotations_file = "train_conceptual_captions_paths.txt"
             self.image_folder = self.dataset_dir / "training"
         else:
-            # annotations_file = "train_conceptual_captions_paths.txt"
-            annotations_file = "Validation_GCC-1.1.0-Validation.tsv"
+            annotations_file = "test_conceptual_captions_paths.txt"
             self.image_folder = self.dataset_dir / "validation"
 
-        with timebudget("0"):
-            all_images = {
-                f.name for f in os.scandir(self.image_folder) if f.name[0].isdigit()
-            }
-
-        with timebudget("1"):
-            self.samples = []
-            with open(self.dataset_dir / annotations_file) as fd:
-                reader = csv.reader(fd, delimiter="\t")
-                for i, (caption, url) in enumerate(reader):
-                    filename = f"{i}_{zlib.crc32(url.encode('utf-8')) & 0xFFFFFFFF}"
-                    if filename in all_images:
-                        self.samples.append((caption, filename))
-        with open("/private/home/rdessi/test_conceptual_captions_paths.txt", "w") as f:
-            for sample in self.samples:
-                f.write(f"{sample[1].strip()}\n")
+        self.samples = []
+        with open(self.dataset_dir / annotations_file) as f:
+            self.samples = f.readlines()
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, index):
-        caption, fname = self.samples[index]
+        fname = self.samples[index]
 
-        img_path = self.image_folder / fname
+        img_path = self.image_folder / fname.strip()
 
         with open(img_path, "rb") as f:
             image = Image.open(f).convert("RGB")
@@ -77,7 +57,7 @@ class ConceptualCaptionsDataset(VisionDataset):
         if self.transform:
             image = self.transform(image)
 
-        aux = {"img_id": torch.tensor([fname])}
+        aux = {"img_id": fname}
         return image, torch.tensor([index]), image, aux
 
 
@@ -92,7 +72,7 @@ class ConceptualCaptionsWrapper:
         split: str,
         batch_size: int,
         image_size: int,
-        num_workers: int = 8,
+        num_workers: int = 1,
         seed: int = 111,
     ):
         ds = ConceptualCaptionsDataset(
@@ -105,11 +85,10 @@ class ConceptualCaptionsWrapper:
             sampler = MyDistributedSampler(
                 ds, shuffle=split != "test", drop_last=True, seed=seed
             )
-
         loader = torch.utils.data.DataLoader(
             ds,
             batch_size=batch_size,
-            shuffle=False,  # split != "test" and sampler is None,
+            shuffle=split != "test" and sampler is None,
             sampler=sampler,
             num_workers=num_workers,
             pin_memory=True,
@@ -125,9 +104,7 @@ if __name__ == "__main__":
         split="test",
         batch_size=1,
         image_size=32,
-        num_workers=8,
+        num_workers=1,
     )
-    print("len data", len(dl.dataset))
-    with timebudget("all"):
-        for i, elem in enumerate(dl):
-            print("eleem", i)
+    for i, elem in enumerate(dl):
+        print("eleem", i, flush=True)
