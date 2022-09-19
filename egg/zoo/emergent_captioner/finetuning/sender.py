@@ -63,15 +63,13 @@ class ClipCapModel(nn.Module):
         self,
         clip_prefix_size: int,
         freeze_mapper: bool,
-        nb_prefix_tokens: int,
         num_return_sequences: int = 1,
+        nb_prefix_tokens: int = 10,
         do_sample: bool = False,
         beam_size: int = 5,
         max_len: int = 20,
     ):
         super(ClipCapModel, self).__init__()
-
-        self.nb_prefix_tokens = nb_prefix_tokens
 
         self.gpt = GPT2LMHeadModel.from_pretrained("gpt2")
         self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
@@ -86,15 +84,13 @@ class ClipCapModel(nn.Module):
         self.logits_processor = StopTokenLogitsProcessor(self.tokenizer, do_sample)
 
         gpt_embedding_size = self.gpt.transformer.wte.weight.shape[1]
-        if nb_prefix_tokens > 10:  # not enough memory
-            input_dim = clip_prefix_size
-            output_dim = gpt_embedding_size * nb_prefix_tokens
-            self.clip_project = nn.Linear(input_dim, output_dim)
-        else:
-            input_dim = clip_prefix_size
-            hidden_dim = (gpt_embedding_size * nb_prefix_tokens) // 2
-            output_dim = gpt_embedding_size * nb_prefix_tokens
-            self.clip_project = MLP((input_dim, hidden_dim, output_dim))
+        input_dim = clip_prefix_size
+
+        self.nb_prefix_tokens = nb_prefix_tokens
+
+        hidden_dim = (gpt_embedding_size * self.nb_prefix_tokens) // 2
+        output_dim = gpt_embedding_size * self.nb_prefix_tokens
+        self.clip_project = MLP((input_dim, hidden_dim, output_dim))
 
         self.freeze_mapper = freeze_mapper
 
@@ -222,7 +218,6 @@ class ClipCapModel(nn.Module):
 class ClipCapSender(nn.Module):
     def __init__(
         self,
-        nb_prefix_tokens: int,
         clip_model: str,
         clipcap_path: str,
         freeze_clipcap_mapper: bool = False,
@@ -245,7 +240,6 @@ class ClipCapSender(nn.Module):
         self.clipcap = ClipCapModel(
             clip_prefix_size=self.clip_vit.output_dim,
             freeze_mapper=freeze_clipcap_mapper,
-            nb_prefix_tokens=nb_prefix_tokens,
             num_return_sequences=num_return_sequences,
             do_sample=do_sample,
             beam_size=beam_size,
@@ -270,7 +264,7 @@ class ClipCapSender(nn.Module):
         self.clipcap.train(mode)
         return self
 
-    def patch_model(self, batch_size: int, nb_prefix_tokens: int):
+    def patch_model(self, batch_size: int, nb_prefix_tokens: int = 10):
         self.clipcap.maybe_patch_gpt(batch_size * nb_prefix_tokens)
 
     def forward(self, images: torch.Tensor, aux_input: Dict[Any, torch.Tensor] = None):

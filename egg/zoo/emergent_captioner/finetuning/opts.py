@@ -32,19 +32,16 @@ def get_clipcap_opts(parser):
         choices=["ViT-B/16", "ViT-B/32"],
         default="ViT-B/32",
     )
-    group.add_argument(
-        "--nb_prefix_tokens",
-        type=int,
-        default=10,
-        help="Number of prefix tokens generated from a clip image embedding",
-    )
+    group.add_argument("--freeze_clipcap_mapper", action="store_true", default=False)
+    group.add_argument("--num_hard_negatives", type=int, default=100)
+    group.add_argument("--in_batch_negatives", action="store_true", default=False)
+
     group.add_argument(
         "--beam_size",
         type=int,
         default=5,
         help="Number of beams when using beam serach decoding",
     )
-    group.add_argument("--freeze_clipcap_mapper", action="store_true", default=False)
     group.add_argument("--num_return_sequences", type=int, default=1)
     group.add_argument("--do_sample", action="store_true", default=False)
 
@@ -52,6 +49,11 @@ def get_clipcap_opts(parser):
 def get_game_opts(parser):
     group = parser.add_argument_group("game options")
 
+    group.add_argument(
+        "--loss_type",
+        choices="accuracy similarity discriminative".split(),
+        default="discriminative",
+    )
     group.add_argument(
         "--recv_clip_model",
         choices=["ViT-B/16", "ViT-B/32"],

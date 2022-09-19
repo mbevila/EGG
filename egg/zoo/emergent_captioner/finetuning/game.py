@@ -9,9 +9,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# from transformers import GPT2Tokenizer
+
 from egg.core.baselines import MeanBaseline, NoBaseline
 from egg.core.interaction import LoggingStrategy
 from egg.zoo.emergent_captioner.receiver import ClipReceiver
+from egg.zoo.emergent_captioner.finetuning.losses import (
+    AccuracyLoss,
+    DiscriminativeLoss,
+    SimilarityLoss,
+)
 from egg.zoo.emergent_captioner.finetuning.sender import ClipCapSender
 
 
@@ -98,6 +105,9 @@ class ReinforceCaptionGame(nn.Module):
             else test_logging_strategy
         )
 
+        # self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+        # self.tokenizer.pad_token = self.tokenizer.eos_token
+
     def forward(self, sender_input, labels, receiver_input=None, aux_input=None):
         captions, log_prob, entropy, msg_lengths = self.sender(sender_input, aux_input)
 
@@ -125,6 +135,18 @@ class ReinforceCaptionGame(nn.Module):
 
         aux_info["sender_entropy"] = entropy
 
+        """
+        captions = self.tokenizer(
+            captions, padding="max_length", max_length=300
+        ).input_ids
+        captions = torch.tensor(captions)
+
+        gt_captions = self.tokenizer(
+            aux_input["caption"], padding="max_length", max_length=300
+        ).input_ids
+        aux_input["caption"] = torch.tensor(gt_captions)
+        """
+
         logging_strategy = (
             self.train_logging_strategy if self.training else self.test_logging_strategy
         )
@@ -142,9 +164,24 @@ class ReinforceCaptionGame(nn.Module):
         return optimized_loss.mean(), interaction
 
 
+def get_loss(loss_type: str, num_hard_negatives: int, in_batch_negatives: bool):
+    if loss_type.lower() != "discriminative":
+        assert RuntimeError("loss {loss_type} not implemented yet")
+
+    name2loss = {
+        "discriminative": DiscriminativeLoss,
+        "accuracy": AccuracyLoss,
+        "similarity": SimilarityLoss,
+    }
+
+    loss = name2loss.get(loss_type.lower(), None)
+    assert loss, f"cannot recognize loss {loss_type}"
+
+    return loss(num_hard_negatives, in_batch_negatives)
+
+
 def build_game(opts):
     sender = ClipCapSender(
-        nb_prefix_tokens=opts.nb_prefix_tokens,
         clip_model=opts.sender_clip_model,
         clipcap_path=opts.clipcap_model_path,
         freeze_clipcap_mapper=opts.freeze_clipcap_mapper,
@@ -154,19 +191,23 @@ def build_game(opts):
         max_len=opts.max_len,
     )
 
-    sender.patch_model(opts.batch_size, opts.nb_prefix_tokens)
+    sender.patch_model(opts.batch_size)
     receiver = ClipReceiver(clip_model=opts.recv_clip_model)
-    # test_logging_strategy = LoggingStrategy(False, False, True, True, True, True, False)
+
     test_logging_strategy = LoggingStrategy(
-        False, False, True, False, False, False, False
+        False, False, True, True, True, False, False
     )
 
-    # TODO add option to use other losses
     # remember that with non-diff losses you should use a wrapper around recv
+    loss = get_loss(
+        loss_type=opts.loss_type,
+        num_hard_negatives=opts.num_hard_negatives,
+        in_batch_negatives=opts.in_batch_negatives,
+    )
     game = ReinforceCaptionGame(
         sender=sender,
         receiver=receiver,
-        loss=discriminative_loss,
+        loss=loss,
         baseline=opts.baseline,
         sender_entropy_coeff=opts.sender_entropy_coeff,
         test_logging_strategy=test_logging_strategy,
