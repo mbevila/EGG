@@ -34,13 +34,13 @@ class CocoDataset:
         if self.transform is not None:
             image = self.transform(image)
 
-        aux = {"all_captions": captions[:5], "caption": captions[0], "img_id": image_id}
+        aux = {"img_id": torch.tensor([image_id])}
 
         return image, torch.tensor([idx]), image, aux
 
 
 class CocoWrapper:
-    def __init__(self, dataset_dir: str):
+    def __init__(self, dataset_dir: str = None):
         if dataset_dir is None:
             dataset_dir = "/checkpoint/rdessi/datasets/coco"
         self.dataset_dir = Path(dataset_dir)
