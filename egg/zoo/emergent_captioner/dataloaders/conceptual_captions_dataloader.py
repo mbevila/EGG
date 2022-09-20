@@ -62,7 +62,7 @@ class ConceptualCaptionsDataset(VisionDataset):
 
 
 class ConceptualCaptionsWrapper:
-    def __init__(self, dataset_dir: str):
+    def __init__(self, dataset_dir: str = None):
         if dataset_dir is None:
             dataset_dir = "/private/home/rdessi/ConceptualCaptions"
         self.dataset_dir = Path(dataset_dir)
