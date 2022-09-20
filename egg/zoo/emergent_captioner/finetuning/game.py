@@ -21,6 +21,27 @@ from egg.zoo.emergent_captioner.finetuning.losses import (
 )
 from egg.zoo.emergent_captioner.finetuning.sender import ClipCapSender
 
+dataset2paths = {
+    "flickr": (
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/flickr/train_flickr.emb.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/flickr/test_flickr.emb.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/flickr/train_flickr.nns.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/flickr/test_flickr.nns.pt",
+    ),
+    "coco": (
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/coco/train_coco.emb.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/coco/test_coco.emb.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/coco/train_coco.nns.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/coco/test_coco.nns.pt",
+    ),
+    "conceptual": (
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/conceptual/train_conceptual.emb.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/conceptual/test_conceptual.emb.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/conceptual/train_conceptual.nns.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/conceptual/test_conceptual.nns.pt",
+    ),
+}
+
 
 def accuracy_loss(
     _sender_input,
@@ -164,9 +185,18 @@ class ReinforceCaptionGame(nn.Module):
         return optimized_loss.mean(), interaction
 
 
-def get_loss(loss_type: str, num_hard_negatives: int, in_batch_negatives: bool):
+def get_loss(
+    loss_type: str,
+    num_hard_negatives: int,
+    in_batch_negatives: bool,
+    dataset: str = None,
+):
+    return discriminative_loss
     if loss_type.lower() != "discriminative":
         assert RuntimeError("loss {loss_type} not implemented yet")
+
+    assert dataset in ["flickr", "coco", "conceptual"]
+    train_emb, test_emb, train_nns, test_nns = dataset2paths[dataset.lower()]
 
     name2loss = {
         "discriminative": DiscriminativeLoss,
@@ -174,10 +204,18 @@ def get_loss(loss_type: str, num_hard_negatives: int, in_batch_negatives: bool):
         "similarity": SimilarityLoss,
     }
 
-    loss = name2loss.get(loss_type.lower(), None)
-    assert loss, f"cannot recognize loss {loss_type}"
+    loss_cls = name2loss.get(loss_type.lower(), None)
+    assert loss_cls, f"cannot recognize loss {loss_type}"
 
-    return loss(num_hard_negatives, in_batch_negatives)
+    loss = loss_cls(
+        train_emb,
+        train_nns,
+        test_emb,
+        test_nns,
+        num_hard_negatives,
+        in_batch_negatives,
+    )
+    return loss
 
 
 def build_game(opts):
@@ -203,6 +241,7 @@ def build_game(opts):
         loss_type=opts.loss_type,
         num_hard_negatives=opts.num_hard_negatives,
         in_batch_negatives=opts.in_batch_negatives,
+        dataset=opts.dataset,
     )
     game = ReinforceCaptionGame(
         sender=sender,
