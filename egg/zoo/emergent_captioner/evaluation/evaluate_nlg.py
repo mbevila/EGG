@@ -49,7 +49,7 @@ def read_jsonfile(file):
 if __name__ == '__main__':
     import sys
     from pathlib import Path
-    evaluation_repo_path = Path(__file__).absolute().parent / 'coco-caption'
+    evaluation_repo_path = Path(__file__).absolute().parent.parent / 'coco-caption'
     evaluation_repo_path = str(evaluation_repo_path)
     sys.path.append(evaluation_repo_path)
 

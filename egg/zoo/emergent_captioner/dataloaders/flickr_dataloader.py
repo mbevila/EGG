@@ -8,6 +8,7 @@ import os
 from collections import defaultdict
 from pathlib import Path
 from PIL import Image
+import sys
 
 import torch
 
@@ -46,7 +47,7 @@ class FlickrWrapper:
             annotations = json.load(f)
         split2samples = defaultdict(list)
         for img_ann in annotations["images"]:
-            file_path = self.dataset_dir / "Images" / img_ann["filename"]
+            file_path = Path("Images") / img_ann["filename"]
             captions = [x["raw"] for x in img_ann["sentences"]]
             img_id = img_ann["imgid"]
             split = img_ann["split"]
@@ -56,7 +57,7 @@ class FlickrWrapper:
             split2samples["train"] += split2samples["restval"]
 
         for k, v in split2samples.items():
-            print(f"| Split {k} has {len(v)} elements.")
+            print(f"| Split {k} has {len(v)} elements.", file=sys.stderr)
         return split2samples
 
     def get_split(

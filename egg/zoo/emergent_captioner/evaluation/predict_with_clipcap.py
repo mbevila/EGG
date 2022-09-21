@@ -50,15 +50,16 @@ if __name__ == '__main__':
 
     if args.dataset_format == "coco":
         from egg.zoo.emergent_captioner.dataloaders.coco_dataloader import CocoWrapper
-        dataloader = CocoWrapper(dataset_dir=args.dataset_path).get_split(
+        dataloader = CocoWrapper(
+            dataset_dir=args.dataset_path).get_split(
             split=args.dataset_split,
             batch_size=args.batch_size,
             image_size=args.image_size,
         )
     elif args.dataset_format == "flickr":
-        from egg.zoo.emergent_captioner.dataloaders.flickr_dataloader import get_dataloader
-        dataloader = get_dataloader(
-            dataset_dir=args.dataset_path,
+        from egg.zoo.emergent_captioner.dataloaders.flickr_dataloader import FlickrWrapper
+        dataloader = FlickrWrapper(
+            dataset_dir=args.dataset_path).get_split(
             split=args.dataset_split,
             batch_size=args.batch_size,
             image_size=args.image_size,
