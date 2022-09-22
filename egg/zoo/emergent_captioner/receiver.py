@@ -12,14 +12,13 @@ from egg.zoo.emergent_captioner.utils import convert_models_to_fp32
 
 
 class ClipReceiver(nn.Module):
-    def __init__(
-        self,
-        clip_model: str,
-    ):
+    def __init__(self, clip_model: str, num_trajectories: int = 1):
         super(ClipReceiver, self).__init__()
         self.clip = clip.load(clip_model)[0]
         convert_models_to_fp32(self.clip)
         self.clip.eval()
+
+        self.num_trajectories = num_trajectories
 
     def forward(self, message, images, aux_input=None):
         text = clip.tokenize(message, truncate=True).to(images.device)

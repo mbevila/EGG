@@ -29,6 +29,10 @@ from egg.zoo.emergent_captioner.utils import (
 
 
 class ModelSaver(Callback):
+    def __init__(self, batch_size: int, nb_prefix_tokens: int = 10):
+        self.batch_size = batch_size
+        self.nb_prefix_tokens = nb_prefix_tokens
+
     def save_clipclap_model(self, epoch=""):
         if hasattr(self.trainer, "checkpoint_path"):
             if (
@@ -38,9 +42,13 @@ class ModelSaver(Callback):
                 self.trainer.checkpoint_path.mkdir(exist_ok=True, parents=True)
                 model_name = f"clip_clap_model_{epoch if epoch else 'final'}.pt"
 
+                self.trainer.game.sender.unpatch_model()
                 torch.save(
-                    self.trainer.game.sender.clipcap.state_dict(),
+                    self.trainer.game.state_dict(),
                     self.trainer.checkpoint_path / model_name,
+                )
+                self.trainer.game.sender.patch_model(
+                    self.batch_size, self.nb_prefix_tokens
                 )
 
     def on_epoch_end(self, loss: float, _logs: Interaction, epoch: int):
@@ -99,7 +107,10 @@ def main(params):
         optimizer=optimizer,
         optimizer_scheduler=scheduler,
         train_data=train_loader,
-        callbacks=[ConsoleLogger(as_json=True, print_train_loss=True), ModelSaver()],
+        callbacks=[
+            ConsoleLogger(as_json=True, print_train_loss=True),
+            ModelSaver(opts.batch_size),
+        ],
         debug=opts.debug,
     )
 

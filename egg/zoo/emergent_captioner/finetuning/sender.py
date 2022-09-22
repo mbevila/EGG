@@ -103,6 +103,9 @@ class ClipCapModel(nn.Module):
                     torch.tensor([0.0] * (len(self.tokenizer) + max_embeddings))
                 )
                 self.gpt.get_output_embeddings().bias.requires_grad = False
+                self.gpt.get_output_embeddings().to(
+                    self.gpt.get_output_embeddings().weight.device
+                )
                 self.gpt._originally_with_no_bias = True
             else:
                 self.gpt._originally_with_no_bias = False
@@ -150,11 +153,9 @@ class ClipCapModel(nn.Module):
                 top_k=len(self.tokenizer),
             )
 
-        if self.num_return_sequences > 1:
-            # remember to do this only at training, at test we don't use/need more sequences
+        if self.num_return_sequences > 1:  # and (not self.training):
             raise NotImplementedError
-            # needs to handle multiple sequences on the receiver side as well
-            # prompts = prompts.repeat_interleave(self.num_return_sequences, 0)
+            prompts = prompts.repeat_interleave(self.num_return_sequences, 0)
 
         indices = generated[:, prefix_len:]
         suffix = self.gpt.get_input_embeddings()(indices)
@@ -266,6 +267,9 @@ class ClipCapSender(nn.Module):
 
     def patch_model(self, batch_size: int, nb_prefix_tokens: int = 10):
         self.clipcap.maybe_patch_gpt(batch_size * nb_prefix_tokens)
+
+    def unpatch_model(self):
+        self.clipcap.maybe_unpatch_gpt()
 
     def forward(self, images: torch.Tensor, aux_input: Dict[Any, torch.Tensor] = None):
         image_feats = self.encode_images(images)
