@@ -22,6 +22,6 @@ class ClipReceiver(nn.Module):
 
     def forward(self, message, images, aux_input=None):
         text = clip.tokenize(message, truncate=True).to(images.device)
-        _, clip_logits = self.clip(images, text)
-        return clip_logits
-        # return self.clip.encode_text(text)
+        # _, clip_logits = self.clip(images, text)
+        # return clip_logits
+        return self.clip.encode_text(text)

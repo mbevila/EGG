@@ -18,6 +18,7 @@ class Loss(nn.Module):
         test_nns_path: str,
         num_hard_negatives=10,
         in_batch_negatives=True,
+        logit_scale: float = 1.0,
     ):
         super().__init__()
         assert num_hard_negatives > 0 or in_batch_negatives
@@ -29,6 +30,8 @@ class Loss(nn.Module):
 
         self.num_hard_negatives = num_hard_negatives
         self.in_batch_negatives = in_batch_negatives
+
+        self.logit_scale = logit_scale
 
     def get_similarity_scores(self, elem_idxs, text_feats, aux_input=None):
         elem_idxs = elem_idxs.squeeze()
@@ -44,13 +47,17 @@ class Loss(nn.Module):
 
         # hard negatives similarity scores
         text_feats = text_feats / text_feats.norm(dim=-1, keepdim=True)
-        cosine_negatives = torch.einsum("bne,be->bn", image_feats_negatives, text_feats)
+        cosine_negatives = self.logit_scale.exp() * torch.einsum(
+            "be,bne->bn", text_feats, image_feats_negatives
+        )
 
         cosine_sims = cosine_negatives
         # in-batch negatives similarity scores (cat'd to hard negatives if computed)
         if self.in_batch_negatives:
             # hard negatives set to 0 is equivalent to in-batch negatives
-            cosine_in_batch = text_feats @ image_feats_negatives[:, 0].t()
+            cosine_in_batch = (
+                self.logit_scale.exp() * text_feats @ image_feats_negatives[:, 0].t()
+            )
             # diag mask because we don't want to count the current element twice
             cosine_in_batch.fill_diagonal_(float("-inf"))
             cosine_sims = torch.cat([cosine_negatives, cosine_in_batch], dim=1)
@@ -86,7 +93,7 @@ class DiscriminativeLoss(Loss):
         labels = torch.zeros(receiver_output.shape[0]).long().to(receiver_output.device)
 
         loss = F.cross_entropy(cosine_sims, labels, reduction="none")
-        acc = (receiver_output.argmax(dim=1) == labels).detach().float()
+        acc = (cosine_sims.argmax(dim=1) == labels).detach().float()
 
         return loss, {"acc": acc}
 
