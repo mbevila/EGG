@@ -30,10 +30,10 @@ def get_opts():
         default="coco",
     )
     parser.add_argument("--split", choices="train test".split(), default="train")
-    parser.add_argument("--batch_size", type=int, default=8, help="Batch size")
+    parser.add_argument("--batch_size", type=int, default=100, help="Batch size")
     parser.add_argument("--image_size", type=int, default=224, help="Image size")
     parser.add_argument("--num_workers", type=int, default=8)
-    parser.add_argument("--max_negatives", type=int, default=100, help="Batch size")
+    parser.add_argument("--max_negatives", type=int, default=100, help="Max Negatives")
 
     return parser.parse_args()
 
@@ -63,10 +63,16 @@ def main():
 
     clip_model = clip.load(opts.clip_model)[0].eval().to(device)
 
-    emb_n = len(dataloader.dataset)
+    if len(dataloader.dataset) % opts.batch_size != 0:
+        print(
+            f"Dataset is not divisible by batch size, dropping {len(dataloader.dataset) % opts.batch_size} samples"
+        )
+
+    emb_n = (len(dataloader.dataset) // opts.batch_size) * opts.batch_size
+    assert emb_n > opts.max_negatives + 1
     emb_s = clip_model.visual.output_dim
-    prec_emb = torch.empty(emb_n, emb_s, dtype=torch.float32, device="cpu")
-    prec_nns = torch.empty(
+    prec_emb = torch.zeros(emb_n, emb_s, dtype=torch.float32, device="cpu")
+    prec_nns = torch.zeros(
         emb_n, opts.max_negatives + 1, dtype=torch.int32, device="cpu"
     )
 
