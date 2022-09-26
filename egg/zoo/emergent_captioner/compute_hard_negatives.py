@@ -66,12 +66,7 @@ def main():
     clip_model = clip.load(opts.clip_model)[0].eval().to(device)
     convert_models_to_fp32(clip_model)
 
-    if len(dataloader.dataset) % opts.batch_size != 0:
-        print(
-            f"Dataset is not divisible by batch size, dropping {len(dataloader.dataset) % opts.batch_size} samples"
-        )
-
-    emb_n = (len(dataloader.dataset) // opts.batch_size) * opts.batch_size
+    emb_n = len(dataloader.dataset)
     assert emb_n > opts.max_negatives + 1
     emb_s = clip_model.visual.output_dim
     prec_emb = torch.zeros(emb_n, emb_s, dtype=torch.float32, device="cpu")
@@ -89,9 +84,22 @@ def main():
             feats = feats.to("cpu")
             prec_emb[sample_idxs.squeeze()] = feats
 
-    for chunk_start in tqdm.tqdm(
-        range(0, emb_n, 1000), desc="Computing nearest neighbours..."
-    ):
+    # computing extra samples if dataset is not divisible by batch_size
+    extra_samples = len(dataloader.dataset) % opts.batch_size
+    dataset = dataloader.dataset
+    while extra_samples > 0:
+        images, sample_idxs, *_ = dataset[-extra_samples]
+        images = images.to(device).unsqueeze(dim=0)
+
+        with torch.no_grad():
+            feats = clip_model.encode_image(images)
+            feats /= feats.norm(dim=-1, keepdim=True)
+            feats = feats.to("cpu")
+            prec_emb[sample_idxs.squeeze()] = feats
+
+        extra_samples -= 1
+
+    for chunk_start in tqdm.tqdm(range(0, emb_n, 1000), desc="Computing nns..."):
         chunk = prec_emb[chunk_start : chunk_start + 1000]
         # emb_n x 1000
         cosin = prec_emb @ chunk.t()
