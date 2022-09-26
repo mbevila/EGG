@@ -34,7 +34,7 @@ class FlickrDataset:
         if self.transform is not None:
             image = self.transform(image)
 
-        aux = {"img_id": image_id}
+        aux = {"img_id": image_id, "caption": captions[0]}
 
         return image, torch.tensor([idx]), image, aux
 
@@ -71,6 +71,7 @@ class FlickrWrapper:
         batch_size: int,
         image_size: int,
         num_workers: int = 8,
+        shuffle: bool = None,
         seed: int = 111,
     ):
 
@@ -80,15 +81,22 @@ class FlickrWrapper:
         ds = FlickrDataset(
             self.dataset_dir, samples, transform=get_transform(image_size)
         )
+
         sampler = None
         if dist.is_initialized():
+            if shuffle is None:
+                shuffle = split != "test"
             sampler = MyDistributedSampler(
-                ds, shuffle=split != "test", drop_last=True, seed=seed
+                ds, shuffle=shuffle, drop_last=True, seed=seed
             )
+
+        if shuffle is None:
+            shuffle = split != "test" and sampler is None
+
         loader = torch.utils.data.DataLoader(
             ds,
             batch_size=batch_size,
-            shuffle=split != "test" and sampler is None,
+            shuffle=shuffle,
             sampler=sampler,
             num_workers=num_workers,
             pin_memory=True,

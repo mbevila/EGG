@@ -73,6 +73,7 @@ class ConceptualCaptionsWrapper:
         batch_size: int,
         image_size: int,
         num_workers: int = 1,
+        shuffle: bool = None,
         seed: int = 111,
     ):
         ds = ConceptualCaptionsDataset(
@@ -80,15 +81,22 @@ class ConceptualCaptionsWrapper:
             split=split,
             transform=get_transform(image_size),
         )
+
         sampler = None
         if dist.is_initialized():
+            if shuffle is None:
+                shuffle = split != "test"
             sampler = MyDistributedSampler(
-                ds, shuffle=split != "test", drop_last=True, seed=seed
+                ds, shuffle=shuffle, drop_last=True, seed=seed
             )
+
+        if shuffle is None:
+            shuffle = split != "test" and sampler is None
+
         loader = torch.utils.data.DataLoader(
             ds,
             batch_size=batch_size,
-            shuffle=split != "test" and sampler is None,
+            shuffle=shuffle,
             sampler=sampler,
             num_workers=num_workers,
             pin_memory=True,
@@ -102,9 +110,12 @@ if __name__ == "__main__":
     wrapper = ConceptualCaptionsWrapper(dataset_dir)
     dl = wrapper.get_split(
         split="test",
-        batch_size=1,
+        batch_size=20,
         image_size=32,
+        shuffle=False,
         num_workers=1,
     )
     for i, elem in enumerate(dl):
+        print(elem[1].tolist())
+        breakpoint()
         print("eleem", i, flush=True)
