@@ -153,8 +153,7 @@ class ClipCapModel(nn.Module):
                 top_k=len(self.tokenizer),
             )
 
-        if self.num_return_sequences > 1:  # and (not self.training):
-            raise NotImplementedError
+        if self.training:
             prompts = prompts.repeat_interleave(self.num_return_sequences, 0)
 
         indices = generated[:, prefix_len:]

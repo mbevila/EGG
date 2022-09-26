@@ -35,6 +35,7 @@ def get_clipcap_opts(parser):
     group.add_argument("--freeze_clipcap_mapper", action="store_true", default=False)
     group.add_argument("--num_hard_negatives", type=int, default=100)
     group.add_argument("--in_batch_negatives", action="store_true", default=False)
+    group.add_argument("--test_w_negatives", action="store_true", default=False)
 
     group.add_argument(
         "--beam_size",

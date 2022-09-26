@@ -190,8 +190,11 @@ def get_loss(
     num_hard_negatives: int,
     in_batch_negatives: bool,
     dataset: str = None,
+    num_return_sequences: int = 1,
+    test_w_negatives: bool = False,
     logit_scale: float = 1.0,
 ):
+    return discriminative_loss
     if loss_type.lower() != "discriminative":
         assert RuntimeError("loss {loss_type} not implemented yet")
 
@@ -214,6 +217,8 @@ def get_loss(
         test_nns,
         num_hard_negatives,
         in_batch_negatives,
+        test_w_negatives,
+        num_return_sequences,
         logit_scale,
     )
     return loss
@@ -243,6 +248,8 @@ def build_game(opts):
         num_hard_negatives=opts.num_hard_negatives,
         in_batch_negatives=opts.in_batch_negatives,
         dataset=opts.dataset,
+        num_return_sequences=opts.num_return_sequences,
+        test_w_negatives=opts.test_w_negatives,
         logit_scale=receiver.clip.logit_scale,
     )
     game = ReinforceCaptionGame(
