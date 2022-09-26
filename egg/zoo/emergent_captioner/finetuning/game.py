@@ -194,7 +194,6 @@ def get_loss(
     test_w_negatives: bool = False,
     logit_scale: float = 1.0,
 ):
-    return discriminative_loss
     if loss_type.lower() != "discriminative":
         assert RuntimeError("loss {loss_type} not implemented yet")
 
