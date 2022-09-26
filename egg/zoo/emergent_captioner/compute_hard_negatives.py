@@ -14,6 +14,7 @@ from dataloaders import (
     ConceptualCaptionsWrapper,
     FlickrWrapper,
 )
+from utils import convert_models_to_fp32
 
 
 def get_opts():
@@ -51,6 +52,7 @@ def get_dataloader(opts):
         batch_size=opts.batch_size,
         image_size=opts.image_size,
         num_workers=opts.num_workers,
+        shuffle=False,
     )
     loader = wrapper.get_split(split=opts.split, **data_kwargs)
     return loader
@@ -62,6 +64,7 @@ def main():
     dataloader = get_dataloader(opts)
 
     clip_model = clip.load(opts.clip_model)[0].eval().to(device)
+    convert_models_to_fp32(clip_model)
 
     if len(dataloader.dataset) % opts.batch_size != 0:
         print(
@@ -76,17 +79,15 @@ def main():
         emb_n, opts.max_negatives + 1, dtype=torch.int32, device="cpu"
     )
 
-    i = 0
     for batch in tqdm.tqdm(dataloader, desc="Embedding..."):
-        images, *_ = batch
+        images, sample_idxs, *_ = batch
         images = images.to(device)
 
         with torch.no_grad():
             feats = clip_model.encode_image(images)
             feats /= feats.norm(dim=-1, keepdim=True)
             feats = feats.to("cpu")
-            prec_emb[i : i + feats.size(0)] = feats
-            i += feats.size(0)
+            prec_emb[sample_idxs.squeeze()] = feats
 
     for chunk_start in tqdm.tqdm(
         range(0, emb_n, 1000), desc="Computing nearest neighbours..."
