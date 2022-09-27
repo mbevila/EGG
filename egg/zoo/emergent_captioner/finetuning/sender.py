@@ -249,6 +249,8 @@ class ClipCapSender(nn.Module):
             print("| LOADED CLIPCAP MODEL")
             self.clipcap.load_state_dict(torch.load(clipcap_path))
 
+        self.patch_model()
+
     def encode_images(self, images: torch.Tensor):
         return self.clip_vit(images)
 
@@ -264,7 +266,7 @@ class ClipCapSender(nn.Module):
         self.clipcap.train(mode)
         return self
 
-    def patch_model(self, batch_size: int, nb_prefix_tokens: int = 10):
+    def patch_model(self, batch_size: int = 500, nb_prefix_tokens: int = 10):
         self.clipcap.maybe_patch_gpt(batch_size * nb_prefix_tokens)
 
     def unpatch_model(self):

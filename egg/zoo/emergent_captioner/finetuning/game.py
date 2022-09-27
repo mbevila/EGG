@@ -234,7 +234,6 @@ def build_game(opts):
         max_len=opts.max_len,
     )
 
-    sender.patch_model(opts.batch_size)
     receiver = ClipReceiver(clip_model=opts.recv_clip_model)
 
     test_logging_strategy = LoggingStrategy(

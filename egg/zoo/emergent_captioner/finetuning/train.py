@@ -29,10 +29,6 @@ from egg.zoo.emergent_captioner.utils import (
 
 
 class ModelSaver(Callback):
-    def __init__(self, batch_size: int, nb_prefix_tokens: int = 10):
-        self.batch_size = batch_size
-        self.nb_prefix_tokens = nb_prefix_tokens
-
     def save_clipclap_model(self, epoch=""):
         if hasattr(self.trainer, "checkpoint_path"):
             if (
@@ -47,9 +43,7 @@ class ModelSaver(Callback):
                     self.trainer.game.state_dict(),
                     self.trainer.checkpoint_path / model_name,
                 )
-                self.trainer.game.sender.patch_model(
-                    self.batch_size, self.nb_prefix_tokens
-                )
+                self.trainer.game.sender.patch_model()
 
     def on_epoch_end(self, loss: float, _logs: Interaction, epoch: int):
         self.save_clipclap_model(epoch=epoch)
@@ -85,6 +79,8 @@ def main(params):
         seed=opts.random_seed,
     )
     train_loader = wrapper.get_split(split="train", **data_kwargs)
+    if not opts.test_w_negatives:
+        data_kwargs["batch_size"] = opts.batch_size + opts.num_hard_negatives
     test_loader = wrapper.get_split(split="test", **data_kwargs)
 
     game = build_game(opts)
@@ -107,10 +103,7 @@ def main(params):
         optimizer=optimizer,
         optimizer_scheduler=scheduler,
         train_data=train_loader,
-        callbacks=[
-            ConsoleLogger(as_json=True, print_train_loss=True),
-            ModelSaver(opts.batch_size),
-        ],
+        callbacks=[ConsoleLogger(as_json=True, print_train_loss=True), ModelSaver()],
         debug=opts.debug,
     )
 
