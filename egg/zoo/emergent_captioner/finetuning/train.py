@@ -22,7 +22,7 @@ from egg.zoo.emergent_captioner.utils import (
     dump_interaction,
     get_sha,
     log_stats,
-    print_grad_info,
+    # print_grad_info,
     setup_for_distributed,
     store_job_and_task_id,
 )
@@ -84,7 +84,7 @@ def main(params):
     test_loader = wrapper.get_split(split="test", **data_kwargs)
 
     game = build_game(opts)
-    print_grad_info(game.sender)
+    # print_grad_info(game.sender)
 
     name2opt = {"adam": torch.optim.Adam, "adamw": AdamW}
 

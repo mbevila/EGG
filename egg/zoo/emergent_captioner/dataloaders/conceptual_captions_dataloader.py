@@ -106,16 +106,34 @@ class ConceptualCaptionsWrapper:
 
 
 if __name__ == "__main__":
+    import clip
+
+    def convert_models_to_fp32(model):
+        for p in model.parameters():
+            p.data = p.data.float()
+
     dataset_dir = "/private/home/rdessi/ConceptualCaptions"
     wrapper = ConceptualCaptionsWrapper(dataset_dir)
     dl = wrapper.get_split(
-        split="test",
-        batch_size=20,
-        image_size=32,
+        split="train",
+        batch_size=10,
+        image_size=224,
         shuffle=False,
-        num_workers=1,
+        num_workers=8,
     )
+
+    nns = torch.load(
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/conceptual/train_conceptual.nns.pt"
+    )
+    batch_emb = torch.load(
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/conceptual/train_conceptual.emb.pt"
+    ).to("cuda")
+    clip = clip.load("ViT-B/32")[0]
+    convert_models_to_fp32(clip)
+    clip.eval()
+
     for i, elem in enumerate(dl):
-        print(elem[1].tolist())
+        s_inp, labels, r_in, aux = elem
+        feats = clip.encode_image(s_inp.to("cuda"))
+        feats /= feats.norm(dim=-1, keepdim=True)
         breakpoint()
-        print("eleem", i, flush=True)
