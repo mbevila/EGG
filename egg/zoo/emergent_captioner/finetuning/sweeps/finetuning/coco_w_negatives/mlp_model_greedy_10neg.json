@@ -1,10 +1,10 @@
 {
-    "n_epoch": [20],
+    "n_epoch": [75],
     "clipcap_model_path": ["/private/home/rdessi/EGG/egg/zoo/emergent_captioner/clipclap_models/coco_weights.pt"],
     "dataset": ["coco"],
     "batch_size": [90],
     "recv_clip_model": ["ViT-B/32"],
-    "lr": [0.000001, 0.0000001],
+    "lr": [0.0000001],
     "beam_size": [1],
     "baseline": ["mean"],
     "do_sample": [false],
@@ -13,5 +13,6 @@
     "eval_out_of_the_box": [true],
     "num_hard_negatives": [10],
     "in_batch_negatives": [true],
-    "test_w_negatives": [true, false]
+    "test_w_negatives": [false],
+    "load_from_checkpoint": ["/private/home/rdessi/contextual_emcomm/coco_negatives/greedy/10_neg/64912590_0/final.tar"]
 }
