@@ -13,6 +13,7 @@ from dataloaders import (
     CocoWrapper,
     ConceptualCaptionsWrapper,
     FlickrWrapper,
+    NoCapsWrapper,
 )
 from utils import convert_models_to_fp32
 
@@ -27,10 +28,10 @@ def get_opts():
     )
     parser.add_argument(
         "--dataset",
-        choices="coco conceptual flickr".split(),
+        choices="coco conceptual flickr nocaps".split(),
         default="coco",
     )
-    parser.add_argument("--split", choices="train test".split(), default="train")
+    parser.add_argument("--split", default="test")
     parser.add_argument("--batch_size", type=int, default=100, help="Batch size")
     parser.add_argument("--image_size", type=int, default=224, help="Image size")
     parser.add_argument("--num_workers", type=int, default=8)
@@ -44,6 +45,7 @@ def get_dataloader(opts):
         "conceptual": ConceptualCaptionsWrapper,
         "coco": CocoWrapper,
         "flickr": FlickrWrapper,
+        "nocaps": NoCapsWrapper,
     }
 
     wrapper = name2wrapper[opts.dataset]()

@@ -40,6 +40,24 @@ dataset2paths = {
         "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/conceptual/train_conceptual.nns.pt",
         "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/conceptual/test_conceptual.nns.pt",
     ),
+    "nocaps_in-domain": (
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/nocaps/indomain.emb.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/nocaps/indomain.emb.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/nocaps/indomain.nns.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/nocaps/indomain.nns.pt",
+    ),
+    "nocaps_near-domain": (
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/nocaps/neardomain.emb.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/nocaps/neardomain.emb.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/nocaps/neardomain.nns.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/nocaps/neardomain.nns.pt",
+    ),
+    "nocaps_out-domain": (
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/nocaps/outdomain.emb.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/nocaps/outdomain.emb.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/nocaps/outdomain.nns.pt",
+        "/private/home/rdessi/EGG/egg/zoo/emergent_captioner/hard_negatives/nocaps/outdomain.nns.pt",
+    ),
 }
 
 
@@ -189,7 +207,8 @@ def get_loss(
     loss_type: str,
     num_hard_negatives: int,
     in_batch_negatives: bool,
-    dataset: str = None,
+    dataset: str,
+    split: str,
     num_return_sequences: int = 1,
     test_w_negatives: bool = False,
     logit_scale: float = 1.0,
@@ -197,7 +216,10 @@ def get_loss(
     if loss_type.lower() != "discriminative":
         assert RuntimeError("loss {loss_type} not implemented yet")
 
-    assert dataset in ["flickr", "coco", "conceptual"]
+    assert dataset in ["flickr", "coco", "conceptual", "nocaps"]
+    if dataset == "nocaps":
+        dataset == "_".join([dataset, split])
+
     train_emb, test_emb, train_nns, test_nns = dataset2paths[dataset.lower()]
 
     name2loss = {
@@ -246,6 +268,7 @@ def build_game(opts):
         num_hard_negatives=opts.num_hard_negatives,
         in_batch_negatives=opts.in_batch_negatives,
         dataset=opts.dataset,
+        split=opts.split,
         num_return_sequences=opts.num_return_sequences,
         test_w_negatives=opts.test_w_negatives,
         logit_scale=receiver.clip.logit_scale,
