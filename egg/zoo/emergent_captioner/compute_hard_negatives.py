@@ -31,6 +31,7 @@ def get_opts():
         choices="coco conceptual flickr nocaps".split(),
         default="coco",
     )
+    parser.add_argument("--dataset_path", help="Dataset path")
     parser.add_argument("--split", default="test")
     parser.add_argument("--batch_size", type=int, default=100, help="Batch size")
     parser.add_argument("--image_size", type=int, default=224, help="Image size")
@@ -48,7 +49,7 @@ def get_dataloader(opts):
         "nocaps": NoCapsWrapper,
     }
 
-    wrapper = name2wrapper[opts.dataset]()
+    wrapper = name2wrapper[opts.dataset](opts.dataset_path)
 
     data_kwargs = dict(
         batch_size=opts.batch_size,

@@ -20,9 +20,15 @@ def get_data_opts(parser):
     group.add_argument("--num_workers", type=int, default=8)
 
 
-def get_clipcap_opts(parser):
-    group = parser.add_argument_group("clipcap options")
+def get_captioner_opts(parser):
+    group = parser.add_argument_group("captioner options")
 
+    group.add_argument('--captioner_model',
+        choices='clipcap blip'.split(), default='clipcap', type=lambda x: str(x).lower(),
+        help="Kind of captioner model"
+    )
+
+    #CLIPCAP
     group.add_argument(
         "--clipcap_model_path",
         default="/private/home/rdessi/EGG/egg/zoo/emergent_captioner/clipclap_models/conceptual_weights.pt",
@@ -33,6 +39,18 @@ def get_clipcap_opts(parser):
         default="ViT-B/32",
     )
     group.add_argument("--freeze_clipcap_mapper", action="store_true", default=False)
+
+    #BLIP
+    group.add_argument(
+        "--blip_model",
+        choices=["coco_base", "coco_large"],
+        default="coco_base",
+    )
+    group.add_argument(
+        "--blip_freeze_img_encoder",
+        action="store_true",
+    )
+
     group.add_argument("--num_hard_negatives", type=int, default=0)
     group.add_argument("--in_batch_negatives", action="store_true", default=False)
     group.add_argument("--test_w_negatives", action="store_true", default=False)
@@ -45,6 +63,7 @@ def get_clipcap_opts(parser):
     )
     group.add_argument("--num_return_sequences", type=int, default=1)
     group.add_argument("--do_sample", action="store_true", default=False)
+    group.add_argument("--set_buffer_size", type=int, default=10)
 
 
 def get_game_opts(parser):
@@ -108,7 +127,7 @@ def get_common_opts(params):
     )
 
     get_data_opts(parser)
-    get_clipcap_opts(parser)
+    get_captioner_opts(parser)
     get_optimizer_opts(parser)
     get_game_opts(parser)
 

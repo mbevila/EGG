@@ -23,12 +23,20 @@ class Loss(nn.Module):
         logit_scale: float = 1.0,
     ):
         super().__init__()
-        assert num_hard_negatives > 0 or in_batch_negatives
+        assert num_hard_negatives > 0 or num_hard_negatives == -1 or in_batch_negatives
 
         # TODO make paths to negatives optional
-        self.train_emb = torch.load(train_emb_path, map_location="cpu")
+        if num_hard_negatives == -1:
+            self.register_buffer('train_emb',
+                torch.load(train_emb_path, map_location="cpu"), persistent=False)
+            self.register_buffer('test_emb',
+                torch.load(test_emb_path, map_location="cpu"), persistent=False)
+
+        else:
+            self.train_emb = torch.load(train_emb_path, map_location="cpu")
+            self.test_emb = torch.load(test_emb_path, map_location="cpu")
+
         self.train_nns = torch.load(train_nns_path, map_location="cpu")
-        self.test_emb = torch.load(test_emb_path, map_location="cpu")
         self.test_nns = torch.load(test_nns_path, map_location="cpu")
 
         self.num_hard_negatives = num_hard_negatives
@@ -52,33 +60,55 @@ class Loss(nn.Module):
             num_hard_negatives = 0
             in_batch_negatives = True
 
-        # fetches embeddings of nearest-neighbor hard negatives
-        batch_nns = nns[elem_idxs][:, : num_hard_negatives + 1].long()
+        if num_hard_negatives == -1:
 
-        # batch x num_negatives + 1 x embed_dim
-        image_feats_negatives = emb[batch_nns].to(text_feats.device)
+            text_feats = text_feats / text_feats.norm(dim=-1, keepdim=True)
 
-        if self.training:
-            image_feats_negatives = image_feats_negatives.repeat_interleave(
-                self.num_return_sequences, 0
+            image_feats_self = emb[nns[elem_idxs][:, :1].long().to(emb.device)]
+            image_feats_coll = emb
+
+            cosine_sims_self = self.logit_scale.exp() * torch.einsum(
+                "be,bse->bs", text_feats, image_feats_self)
+            cosine_sims_coll = self.logit_scale.exp() * torch.einsum(
+                "be,ne->bn",  text_feats, image_feats_coll)
+
+            cosine_sims_coll.masked_fill_(
+                torch.nn.functional.one_hot(
+                    nns[elem_idxs][:, 0].long().to(emb.device),
+                    num_classes=image_feats_coll.size(0)
+                ).bool(),
+                float('-inf')
+            )
+            cosine_sims = torch.cat([cosine_sims_self, cosine_sims_coll], dim=1)
+        else:
+
+            # fetches embeddings of nearest-neighbor hard negatives
+            batch_nns = nns[elem_idxs][:, : num_hard_negatives + 1].long()
+
+            # batch x num_negatives + 1 x embed_dim
+            image_feats_negatives = emb[batch_nns].to(text_feats.device)
+
+            if self.training:
+                image_feats_negatives = image_feats_negatives.repeat_interleave(
+                    self.num_return_sequences, 0
+                )
+
+            # hard negatives similarity scores
+            text_feats = text_feats / text_feats.norm(dim=-1, keepdim=True)
+            cosine_negatives = self.logit_scale.exp() * torch.einsum(
+                "be,bne->bn", text_feats, image_feats_negatives
             )
 
-        # hard negatives similarity scores
-        text_feats = text_feats / text_feats.norm(dim=-1, keepdim=True)
-        cosine_negatives = self.logit_scale.exp() * torch.einsum(
-            "be,bne->bn", text_feats, image_feats_negatives
-        )
-
-        cosine_sims = cosine_negatives
-        # in-batch negatives similarity scores (cat'd to hard negatives if computed)
-        if in_batch_negatives:
-            # hard negatives set to 0 is equivalent to in-batch negatives
-            cosine_in_batch = (
-                self.logit_scale.exp() * text_feats @ image_feats_negatives[:, 0].t()
-            )
-            # diag mask because we don't want to count the current element twice
-            cosine_in_batch.fill_diagonal_(float("-inf"))
-            cosine_sims = torch.cat([cosine_negatives, cosine_in_batch], dim=1)
+            cosine_sims = cosine_negatives
+            # in-batch negatives similarity scores (cat'd to hard negatives if computed)
+            if in_batch_negatives:
+                # hard negatives set to 0 is equivalent to in-batch negatives
+                cosine_in_batch = (
+                    self.logit_scale.exp() * text_feats @ image_feats_negatives[:, 0].t()
+                )
+                # diag mask because we don't want to count the current element twice
+                cosine_in_batch.fill_diagonal_(float("-inf"))
+                cosine_sims = torch.cat([cosine_negatives, cosine_in_batch], dim=1)
 
         aux_input["receiver_output"] = cosine_sims
 

@@ -19,7 +19,7 @@ from egg.zoo.emergent_captioner.finetuning.losses import (
     DiscriminativeLoss,
     SimilarityLoss,
 )
-from egg.zoo.emergent_captioner.finetuning.sender import ClipCapSender
+from egg.zoo.emergent_captioner.finetuning.sender import ClipCapSender, BLIPSender
 
 dataset2paths = {
     "flickr": (
@@ -246,15 +246,32 @@ def get_loss(
 
 
 def build_game(opts):
-    sender = ClipCapSender(
-        clip_model=opts.sender_clip_model,
-        clipcap_path=opts.clipcap_model_path,
-        freeze_clipcap_mapper=opts.freeze_clipcap_mapper,
-        num_return_sequences=opts.num_return_sequences,
-        do_sample=opts.do_sample,
-        beam_size=opts.beam_size,
-        max_len=opts.max_len,
-    )
+
+    if opts.captioner_model == 'clipcap':
+        sender = ClipCapSender(
+            clip_model=opts.sender_clip_model,
+            clipcap_path=opts.clipcap_model_path,
+            freeze_clipcap_mapper=opts.freeze_clipcap_mapper,
+            num_return_sequences=opts.num_return_sequences,
+            do_sample=opts.do_sample,
+            beam_size=opts.beam_size,
+            max_len=opts.max_len,
+        )
+    elif opts.captioner_model == 'blip':
+        sender = BLIPSender(
+            blip_model=opts.blip_model,
+            freeze_image_encoder=opts.blip_freeze_img_encoder,
+            num_return_sequences=opts.num_return_sequences,
+            do_sample=opts.do_sample,
+            beam_size=opts.beam_size,
+            max_len=opts.max_len,
+        )
+    else:
+        raise NotImplementedError
+
+    if opts.set_buffer_size > 0:
+        sender.unpatch_model()
+        sender.patch_model(opts.set_buffer_size)
 
     receiver = ClipReceiver(clip_model=opts.recv_clip_model)
 
